@@ -1,0 +1,12 @@
+.env
+data/
+__pycache__/
+*.pyc
+*.mp4
+output/*.bak.json
+output/*.pre_*.json
+DEPLOYMENT_NOTES.md
+.venv/
+*.tar
+*.tgz
+actions-runner/

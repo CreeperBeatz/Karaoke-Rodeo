@@ -1,0 +1,13 @@
+# web + worker
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+httpx>=0.27
+pillow>=10
+segno>=1.6
+yt-dlp
+# pipeline (also needs an ffmpeg binary: apt install ffmpeg on the Pi, or imageio-ffmpeg)
+numpy
+opencv-python-headless
+scipy
+imageio-ffmpeg

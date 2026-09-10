@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カラオケ採点 PoC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --stage: #0b0e1a;
+    --panel: #131a2e;
+    --panel-2: #1a2340;
+    --line: #232d4d;
+    --ink: #eef2ff;
+    --ink-dim: #8b93b8;
+    --cyan: #35d6f0;
+    --pink: #ff4d8f;
+    --gold: #ffc64b;
+    --miss: #4a5375;
+    --font-led: "DotGothic16", monospace;
+    --font-body: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--stage); color: var(--ink);
+    font-family: var(--font-body); font-size: 14px;
+    display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #10162a, #0b0e1a);
+  }
+  header .logo {
+    font-family: var(--font-led); font-size: 20px; color: var(--cyan);
+    letter-spacing: 2px; text-shadow: 0 0 12px rgba(53, 214, 240, .5);
+    white-space: nowrap;
+  }
+  header .logo em { color: var(--pink); font-style: normal; }
+  select, button, input[type=range] { font-family: var(--font-body); }
+  select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 10px; font-size: 14px; max-width: 380px;
+  }
+  #micSel { max-width: 160px; font-size: 12px; padding: 4px 6px; }
+  .ctl { display: flex; align-items: center; gap: 6px; color: var(--ink-dim); }
+  .ctl output { color: var(--ink); min-width: 52px; text-align: right; }
+  button.primary {
+    background: var(--pink); border: none; color: #fff; font-weight: 800;
+    padding: 9px 22px; border-radius: 999px; font-size: 15px; cursor: pointer;
+    box-shadow: 0 0 18px rgba(255, 77, 143, .35);
+  }
+  button.primary:disabled { background: var(--miss); box-shadow: none; cursor: default; }
+  button.primary:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .miclevel {
+    width: 70px; height: 8px; border-radius: 4px; background: var(--panel-2);
+    overflow: hidden; border: 1px solid var(--line);
+  }
+  .miclevel i { display: block; height: 100%; width: 0; background: var(--cyan); }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 250px; gap: 14px; padding: 14px 16px 0; min-height: 0; }
+  .videobox { position: relative; background: #000; border-radius: 12px; overflow: hidden; align-self: start; }
+  .videobox video { display: block; width: 100%; max-height: 56vh; background: #000; }
+  .stamp {
+    position: absolute; right: 4%; top: 8%;
+    font-family: var(--font-led); font-size: 54px; pointer-events: none;
+    opacity: 0; transform: rotate(-8deg) scale(1.6);
+    text-shadow: 0 0 18px currentColor; user-select: none;
+  }
+  .stamp.show { animation: slam .9s ease-out; }
+  @keyframes slam {
+    0% { opacity: 0; transform: rotate(-8deg) scale(2.2); }
+    18% { opacity: 1; transform: rotate(-8deg) scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: rotate(-8deg) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stamp.show { animation: none; opacity: 1; transform: rotate(-8deg) scale(1); }
+  }
+  aside {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 14px; align-self: start;
+  }
+  .scorelabel { color: var(--ink-dim); font-size: 12px; letter-spacing: 3px; }
+  .score {
+    font-family: var(--font-led); font-size: 52px; line-height: 1;
+    color: var(--gold); text-shadow: 0 0 16px rgba(255, 198, 75, .45);
+    font-variant-numeric: tabular-nums;
+  }
+  .score small { font-size: 26px; }
+  .statrow { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-dim); }
+  .statrow b { color: var(--ink); font-family: var(--font-led); font-size: 16px; }
+  .combo { font-family: var(--font-led); color: var(--cyan); font-size: 22px; min-height: 26px; }
+  .hint { color: var(--ink-dim); font-size: 12px; line-height: 1.6; }
+  .lanewrap { padding: 0 16px 14px; }
+  #lane { width: 100%; height: 190px; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  dialog {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 16px; padding: 34px 46px; text-align: center;
+  }
+  dialog::backdrop { background: rgba(5, 7, 14, .8); }
+  dialog .final {
+    font-family: var(--font-led); font-size: 96px; color: var(--gold);
+    text-shadow: 0 0 28px rgba(255, 198, 75, .55); margin: 8px 0 2px;
+  }
+  dialog .grade { font-family: var(--font-led); font-size: 30px; color: var(--pink); margin-bottom: 14px; }
+  dialog table { margin: 0 auto 18px; border-collapse: collapse; color: var(--ink-dim); }
+  dialog td { padding: 3px 12px; }
+  dialog td b { color: var(--ink); font-family: var(--font-led); }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    aside { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">歌<em>°</em>ジニカ SCORE</div>
+  <select id="songSel" aria-label="曲を選ぶ"></select>
+  <button class="primary" id="startBtn" disabled>マイク準備中…</button>
+  <div class="ctl" title="マイク入力レベル">🎤 <span class="miclevel"><i id="micLevel"></i></span>
+    <select id="micSel" aria-label="マイクを選ぶ" hidden></select>
+  </div>
+  <div class="ctl">遅延補正
+    <input type="range" id="latency" min="0" max="400" step="10" value="140">
+    <output id="latencyOut">140ms</output>
+  </div>
+</header>
+<main>
+  <div class="videobox">
+    <video id="video" controls preload="metadata" crossorigin="anonymous"></video>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <aside>
+    <div>
+      <div class="scorelabel">とくてん SCORE</div>
+      <div class="score"><span id="scoreInt">--</span><small id="scoreDec">.---</small></div>
+    </div>
+    <div class="combo" id="combo"></div>
+    <div class="statrow"><span>すごい PERFECT</span><b id="cPerfect">0</b></div>
+    <div class="statrow"><span>いいね GREAT</span><b id="cGreat">0</b></div>
+    <div class="statrow"><span>まあまあ GOOD</span><b id="cGood">0</b></div>
+    <div class="statrow"><span>ミス MISS</span><b id="cMiss">0</b></div>
+    <div class="hint">ヘッドホン推奨。音程はオクターブ違いでもOK（本物のカラオケ採点と同じ）。動画を再生すると採点が始まります。</div>
+  </aside>
+</main>
+<div class="lanewrap">
+  <canvas id="lane" height="190"></canvas>
+</div>
+<dialog id="result">
+  <div class="scorelabel">FINAL SCORE</div>
+  <div class="final" id="finalScore">0.000</div>
+  <div class="grade" id="finalGrade"></div>
+  <table>
+    <tr><td>すごい</td><td><b id="rPerfect">0</b></td><td>いいね</td><td><b id="rGreat">0</b></td></tr>
+    <tr><td>まあまあ</td><td><b id="rGood">0</b></td><td>ミス</td><td><b id="rMiss">0</b></td></tr>
+    <tr><td>最大コンボ</td><td colspan="3"><b id="rCombo">0</b></td></tr>
+  </table>
+  <button class="primary" onclick="document.getElementById('result').close()">閉じる</button>
+</dialog>
+<script src="pitch.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

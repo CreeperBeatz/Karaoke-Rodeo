@@ -1,0 +1,21 @@
+[Unit]
+Description=karaoke.rodeo worker (yt-dlp download + song-map pipeline)
+After=network-online.target karaoke-web.service
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=__APP_DIR__/.env
+Environment=PYTHONUTF8=1 OMP_NUM_THREADS=2 OPENCV_FFMPEG_THREADS=2
+ExecStart=__APP_DIR__/.venv/bin/python worker.py
+Restart=always
+RestartSec=10
+Nice=10
+IOSchedulingClass=idle
+# the web server must stay responsive while a song is processed on 4 cores
+CPUWeight=30
+MemoryMax=2800M
+
+[Install]
+WantedBy=multi-user.target
