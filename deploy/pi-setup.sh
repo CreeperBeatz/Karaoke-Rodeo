@@ -21,6 +21,16 @@ REPO_URL="${REPO_URL:-https://github.com/CreeperBeatz/Karaoke-Rodeo}"
 ARCH="$(dpkg --print-architecture)"   # arm64 on a 64-bit Pi
 cd "$APP_DIR"
 
+# Tokens may be passed as env vars OR pre-placed as files (~/.cftoken, ~/.ghrunner) so they never sit in argv.
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-$( [ -f "$HOME/.cftoken" ] && cat "$HOME/.cftoken" || true )}"
+GH_RUNNER_TOKEN="${GH_RUNNER_TOKEN:-$( [ -f "$HOME/.ghrunner" ] && cat "$HOME/.ghrunner" || true )}"
+
+echo "== 0/5  stop any interim (nohup) processes so systemd can take over the port/tunnel =="
+for pat in 'python -m server' 'worker.py' 'cloudflared tunnel run'; do
+  for pid in $(pgrep -f "$pat" || true); do kill "$pid" 2>/dev/null || true; done
+done
+sleep 2
+
 echo "== 1/5  systemd services =="
 for u in karaoke-web karaoke-worker; do
   sed "s#__APP_DIR__#$APP_DIR#g; s#__USER__#$USER_NAME#g" "deploy/$u.service" | sudo tee "/etc/systemd/system/$u.service" >/dev/null
@@ -39,22 +49,25 @@ sed -i 's#^BASE_URL=.*#BASE_URL=https://karaoke.rodeo#; s#^HOST=.*#HOST=127.0.0.
 grep -q '^RESEND_API_KEY=.\+' .env || echo "  !! RESEND_API_KEY is empty in .env — magic-link emails will NOT send until you set it."
 sudo systemctl restart karaoke-web karaoke-worker
 
-echo "== 4/5  Cloudflare Tunnel =="
-if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
+echo "== 4/5  Cloudflare Tunnel (systemd service) =="
+if [ -n "$CF_TUNNEL_TOKEN" ]; then
   if ! command -v cloudflared >/dev/null; then
-    tmp=$(mktemp); curl -fsSL -o "$tmp" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${ARCH}.deb"
-    sudo dpkg -i "$tmp"; rm -f "$tmp"
+    if [ -x "$HOME/cloudflared" ]; then           # reuse the standalone binary if it's already here
+      sudo install -m 0755 "$HOME/cloudflared" /usr/local/bin/cloudflared
+    else
+      tmp=$(mktemp); curl -fsSL -o "$tmp" "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${ARCH}.deb"
+      sudo dpkg -i "$tmp"; rm -f "$tmp"
+    fi
   fi
-  sudo cloudflared service install "$CF_TUNNEL_TOKEN"
-  sudo systemctl enable --now cloudflared 2>/dev/null || true
-  echo "  cloudflared installed. In the Cloudflare dashboard, point the tunnel's public hostname"
-  echo "  karaoke.rodeo -> http://127.0.0.1:8765 (HTTP)."
+  sudo cloudflared service install "$CF_TUNNEL_TOKEN"   # installs + enables + starts the cloudflared systemd unit
+  echo "  cloudflared service installed. Ensure the tunnel's Public Hostname is karaoke.rodeo ->"
+  echo "  Service type HTTP, URL 127.0.0.1:8765 (NOT https)."
 else
-  echo "  skipped (no CF_TUNNEL_TOKEN). Re-run with it set to enable the tunnel."
+  echo "  skipped (no CF token in env or ~/.cftoken)."
 fi
 
 echo "== 5/5  GitHub Actions self-hosted runner =="
-if [ -n "${GH_RUNNER_TOKEN:-}" ]; then
+if [ -n "$GH_RUNNER_TOKEN" ]; then
   mkdir -p "$HOME/actions-runner" && cd "$HOME/actions-runner"
   if [ ! -f ./config.sh ]; then
     RUNNER_VER=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
