@@ -134,13 +134,15 @@ function micHintText(e) {
   return '';
 }
 
-function setMicMessage(text, hint) {
+function setMicMessage(text, hint, note = false) {
   $('micMsg').textContent = hint || '';
   $('micMsg').hidden = !hint;
+  $('micMsg').classList.toggle('note', !!note);
   startBtn.textContent = text;
-  // the collapsed bar is a single nowrap line with the start button hidden - no room to read a failure in,
-  // so anything that needs explaining opens the bar back up (without remembering that as a preference)
-  if (hint) setCollapsed(false, false);
+  // the collapsed bar is a single nowrap line with the start button hidden - no room to read a failure in, so a
+  // failure opens the bar back up (without remembering that as a preference). Advice is not worth overriding a
+  // deliberate collapse for: it waits until the bar is open anyway.
+  if (hint && !note) setCollapsed(false, false);
 }
 
 async function listMics() {
@@ -163,10 +165,13 @@ async function initMic(deviceId) {
   startBtn.disabled = true;
   setMicMessage('マイクを準備中…', '');
   try {
-    await state.detector.start(true, deviceId);
+    await state.detector.start(false, deviceId);   // see pitch.js: AEC would move Android to call audio
     if (deviceId) localStorage.setItem(LS_MIC, deviceId);
     micReady = true;
-    setMicMessage('▶ うたう！', '');
+    // Echo cancellation is off (it would move Android to call audio - see pitch.js), so on a phone held at arm's
+    // length the loudspeaker goes straight back into the mic and gets scored as if it were singing.
+    setMicMessage('▶ うたう！', matchMedia('(pointer: coarse)').matches
+      ? 'イヤホンを使うと、伴奏がマイクに入らず正しく採点できます。' : '', true);
     startBtn.disabled = false;
     await listMics().catch(() => {});
     return true;

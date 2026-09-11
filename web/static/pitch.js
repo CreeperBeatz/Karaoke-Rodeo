@@ -11,7 +11,14 @@ class PitchDetector {
     this.level = 0;
   }
 
-  async start(echoCancellation = true, deviceId = null) {
+  // echoCancellation defaults OFF, and on a phone that is not a preference but a requirement. Chrome routes
+  // capture through the WebRTC stack, and AEC has to couple the capture and render streams, which puts Android
+  // into MODE_IN_COMMUNICATION: playback leaves the media stream, comes out of the earpiece instead of the
+  // loudspeaker, and follows the *call* volume slider. It also resamples to a speech-tuned 16kHz and processes
+  // the voice, which is the opposite of what pitch detection wants - the same reason noiseSuppression and
+  // autoGainControl are off. The cost is that without AEC the mic hears the backing track, so singing over a
+  // loudspeaker bleeds into the score: headphones are the real answer on a phone.
+  async start(echoCancellation = false, deviceId = null) {
     // Older iOS Safari only has the prefixed constructor. Built here rather than at page load: start() is
     // reached from a tap, and a context created inside a gesture starts running instead of suspended.
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();

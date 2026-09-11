@@ -47,6 +47,8 @@
   .micmsg { flex: 1 1 100%; order: 11; margin: 2px 0 4px; padding: 8px 12px; border-radius: var(--r-field);
             background: var(--panel-2); border: 3px solid var(--red-t); color: var(--red-t);
             font-size: 13px; font-weight: 700; line-height: 1.5; }
+  /* the same strip used for advice rather than a failure - it is not an error, so it is not red */
+  .micmsg.note { border-color: var(--line); color: var(--ink-dim); }
   .ctls { display: contents; }                   /* the controls sit inline in the bar */
   /* Collapsed bar: the controls and the start button fold away, title · artist share one row and only the expand
      button stays on the right. Same at every width; the site header is untouched. Persisted in localStorage. */
