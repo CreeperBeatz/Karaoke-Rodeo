@@ -145,6 +145,11 @@ def stage_download(con, job, song):
     sid = song["id"]
     d = paths.song_dir(sid)
     os.makedirs(d, exist_ok=True)
+    # a re-run from the download stage must fetch afresh: yt-dlp skips when video.mp4 already exists, which
+    # would keep a file downloaded with an older format selection (the AV1 case) instead of replacing it
+    for fn in os.listdir(d):
+        if fn.startswith("video.") and fn.split(".")[-1] in ("mp4", "part", "ytdl", "m4a", "webm", "mkv"):
+            os.remove(os.path.join(d, fn))
     cmd = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--newline", "--progress-delta", "5", "-f", YTDLP_FORMAT,
            "--merge-output-format", "mp4", "-o", os.path.join(d, "video.%(ext)s"), "--write-info-json",
            "--write-thumbnail", "--convert-thumbnails", "jpg", "--ffmpeg-location", ffmpeg_dir_for_ytdlp()]
