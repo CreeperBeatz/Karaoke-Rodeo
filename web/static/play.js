@@ -119,10 +119,17 @@ function micHintText(e) {
     return 'ブラウザはページが https のときだけマイクを渡します。https://karaoke.rodeo から開いてください。';
   }
   if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
-    return 'アドレスバーの🔒からマイクを「許可」にして、もう一度タップしてください。';
+    // On Android the permission has two levels: the site's, and the browser app's own OS permission. When the
+    // app itself lacks it, Chrome rejects without ever showing a prompt and the site never appears in its site
+    // settings - so the phone's app settings have to be named here, not just the padlock.
+    return 'スマホ本体の設定 →「アプリ」→ Chrome →「権限」→「マイク」を「許可」にしてください。'
+         + 'そのうえで、アドレスバーの🔒 →「権限」からマイクを「許可」に。';
   }
   if (e && e.name === 'NotReadableError') {
     return '他のアプリやタブがマイクを使っています。閉じてから、もう一度タップしてください。';
+  }
+  if (e && e.name === 'NotFoundError') {
+    return '入力できるマイクが見つかりません。イヤホンやヘッドセットを挿している場合は、抜き差ししてみてください。';
   }
   return '';
 }
@@ -168,7 +175,8 @@ async function initMic(deviceId) {
     // A deviceId remembered from a previous session goes stale on Android (the ids are re-salted); drop it
     // and ask again for whatever the default input is.
     if (deviceId) { localStorage.removeItem(LS_MIC); return initMic(null); }
-    setMicMessage(micErrorText(e), micHintText(e));
+    // no devtools on a phone: name the underlying error so a failure can actually be reported and told apart
+    setMicMessage(micErrorText(e), micHintText(e) + (e && e.name ? `（${e.name}）` : ''));
     startBtn.disabled = false;          // never a dead end: the button retries
     return false;
   }
