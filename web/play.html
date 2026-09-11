@@ -7,7 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="theme-color" content="#0b0e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
 <style>
   /* The stage fills the viewport and never scrolls: the note lane must stay visible while singing,
@@ -23,6 +30,15 @@
   #micSel { max-width: 160px; font-size: 12px; padding: 4px 6px; }
   .miclevel { width: 70px; height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--line); }
   .miclevel i { display: block; height: 100%; width: 0; background: var(--cyan); }
+  #chromeBtn { padding: 4px 8px; font-size: 12px; line-height: 1; }
+  .ctls { display: contents; }                   /* the controls sit inline in the bar */
+  /* Collapsed bar: the controls and the start button fold away, title · artist share one row and only the expand
+     button stays on the right. Same at every width; the site header is untouched. Persisted in localStorage. */
+  .bar.collapsed .ctls, .bar.collapsed #startBtn { display: none; }
+  .bar.collapsed { padding: 4px 16px; flex-wrap: nowrap; }
+  .bar.collapsed .song { flex-direction: row; align-items: baseline; gap: 10px; min-width: 0; }
+  .bar.collapsed .song .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar.collapsed .song .a { white-space: nowrap; }
 
   main.play { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 260px;
               grid-template-rows: minmax(0, 1fr); gap: 14px; padding: 12px 16px 0; }
@@ -75,23 +91,35 @@
     .statrow { gap: 6px; font-size: 12px; }
     .combo { font-size: 16px; min-height: 0; }
     .hint { display: none; }
-    .bar { padding: 6px 10px; gap: 8px 10px; }
-    .bar .song { flex: 1 1 100%; }        /* title on its own line, controls under it */
+    /* Phone: the bar is the same collapsible strip. Expanded, the controls wrap onto a second row under the title;
+       the start button floats over the video instead (and hides while the song runs) so it survives collapsing. */
+    .bar, .bar.collapsed { padding: 4px 10px; gap: 6px 10px; }
+    .bar .song { flex: 1 1 auto; min-width: 0; flex-direction: row; align-items: baseline; gap: 8px; }
+    .bar .song .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar .song .a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
     .bar .sp { display: none; }
-    #startBtn { margin-left: auto; padding: 8px 16px; font-size: 14px; }
-    #micSel { max-width: 110px; }
+    .ctls { display: flex; flex: 1 1 100%; order: 10; align-items: center; gap: 10px; flex-wrap: wrap; }  /* second row; ▲ stays beside the title */
+    .bar.collapsed .ctls { display: none; }
+    .ctls .latency { flex: 1; } .ctls .latency input[type=range] { flex: 1; max-width: none; }
+    #micSel { max-width: 130px; }
+    .videobox #startBtn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+                          font-size: 18px; padding: 12px 28px; box-shadow: 0 8px 28px rgba(0, 0, 0, .5); }
+    body.running .videobox #startBtn { display: none; }
   }
 </style>
 </head>
 <body class="playpage">
 <header class="top"></header>
-<div class="bar">
+<div class="bar" id="bar">
   <div class="song"><span class="t" id="title">…</span><span class="a" id="artist"></span></div>
   <div class="sp"></div>
-  <select id="micSel" hidden title="マイク"></select>
-  <div class="ctl" title="マイク入力レベル"><span>MIC</span><div class="miclevel"><i id="micLevel"></i></div></div>
-  <div class="ctl latency" title="判定の時間ズレ補正"><span>遅延</span><input id="latency" type="range" min="0" max="400" step="10"><output id="latencyOut"></output></div>
+  <div class="ctls" id="ctls">
+    <select id="micSel" hidden title="マイク"></select>
+    <div class="ctl" title="マイク入力レベル"><span>MIC</span><div class="miclevel"><i id="micLevel"></i></div></div>
+    <div class="ctl latency" title="判定の時間ズレ補正"><span>遅延</span><input id="latency" type="range" min="0" max="400" step="10"><output id="latencyOut"></output></div>
+  </div>
   <button id="startBtn" class="primary" disabled>マイク準備中…</button>
+  <button id="chromeBtn" class="ghost small" aria-expanded="true">▲</button>
 </div>
 <main class="play">
   <div class="videobox">

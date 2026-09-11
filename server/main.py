@@ -11,7 +11,7 @@ from .routers import admin, party, plays, profile, songs, stats
 
 WEB = os.path.join(config.ROOT, "web")
 PAGES = {"": "index.html", "login": "login.html", "play": "play.html", "stats": "stats.html", "leaderboard": "leaderboard.html",
-         "profile": "profile.html", "admin": "admin.html", "label": "label.html", "songs": "index.html"}
+         "profile": "profile.html", "admin": "admin.html", "label": "label.html", "songs": "index.html", "about": "about.html"}
 
 app = FastAPI(title=config.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
 db.migrate()
@@ -27,6 +27,10 @@ async def security_headers(request: Request, call_next):
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     resp.headers.setdefault("X-Frame-Options", "DENY")
     resp.headers.setdefault("Permissions-Policy", "microphone=(self), camera=()")
+    # /static has ETags but no explicit policy, so browsers cache it heuristically and keep stale JS/CSS after a
+    # deploy. no-cache = revalidate every time (a 304 when unchanged), same as the HTML pages.
+    if request.url.path.startswith("/static/"):
+        resp.headers.setdefault("Cache-Control", "no-cache")
     return resp
 
 

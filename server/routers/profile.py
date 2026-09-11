@@ -20,13 +20,26 @@ class LoginIn(BaseModel):
     next: Optional[str] = None
 
 
+class CodeIn(BaseModel):
+    email: str
+    code: str
+
+
 @router.post("/api/auth/request")
 def auth_request(body: LoginIn, request: Request, db=Depends(get_db)):
-    link = auth.request_link(db, body.email, auth.client_ip(request), body.next)
+    link, code = auth.request_link(db, body.email, auth.client_ip(request), body.next)
     out = {"ok": True, "dev_mode": config.DEV_MODE}
     if config.DEV_MODE:
-        out["dev_link"] = link  # no mail is sent in dev mode; the link is shown in the UI instead
+        out["dev_link"], out["dev_code"] = link, code  # no mail is sent in dev mode; shown in the UI instead
     return out
+
+
+@router.post("/api/auth/code")
+def auth_code(body: CodeIn, request: Request, response: Response, db=Depends(get_db)):
+    """Log in with the 6-digit code from the mail — for installed apps, where the link would open in the browser."""
+    user, is_new, next_url = auth.verify_code(db, body.email, body.code, response, request.headers.get("user-agent", ""))
+    return {"ok": True, "is_new": is_new,
+            "next": "/profile?welcome=1" + (f"&next={next_url}" if next_url else "") if is_new else (next_url or "/")}
 
 
 @router.get("/auth/verify")

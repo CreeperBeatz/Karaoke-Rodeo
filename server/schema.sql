@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS login_tokens (
   expires_at TEXT NOT NULL,
   used_at TEXT,
   ip TEXT,
-  next_url TEXT
+  next_url TEXT,
+  code_hash TEXT,                        -- 6-digit code from the same mail, for installed (standalone) apps
+  code_attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_login_tokens_email ON login_tokens(email, created_at);
 CREATE INDEX IF NOT EXISTS idx_login_tokens_ip ON login_tokens(ip, created_at);

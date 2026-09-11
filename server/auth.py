@@ -1,5 +1,6 @@
 """Magic-link authentication + cookie sessions. Tokens are stored hashed; links are single-use."""
 import hashlib
+import hmac
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -46,15 +47,16 @@ def request_link(db, email, ip, next_url=None):
     if n_email >= 5 or n_ip >= 20:
         raise HTTPException(429, "リクエストが多すぎます。しばらく待ってください / too many requests")
     token = secrets.token_urlsafe(32)
+    code = f"{secrets.randbelow(10 ** 6):06d}"
     exp = _utcnow() + timedelta(minutes=config.LOGIN_TOKEN_MINUTES)
     if next_url and (not next_url.startswith("/") or next_url.startswith("//")):
         next_url = None
-    db.execute("INSERT INTO login_tokens(token_hash,email,created_at,expires_at,ip,next_url) VALUES(?,?,?,?,?,?)",
-               (_h(token), email, now(), _ts(exp), ip, next_url))
+    db.execute("INSERT INTO login_tokens(token_hash,email,created_at,expires_at,ip,next_url,code_hash) VALUES(?,?,?,?,?,?,?)",
+               (_h(token), email, now(), _ts(exp), ip, next_url, _h(code)))
     link = f"{config.BASE_URL}/auth/verify?token={token}"
-    subject, html, text = mail.magic_link_mail(link, config.LOGIN_TOKEN_MINUTES)
+    subject, html, text = mail.magic_link_mail(link, code, config.LOGIN_TOKEN_MINUTES)
     mail.send(email, subject, html, text)
-    return link
+    return link, code
 
 
 def _display_name_from_email(email):
@@ -67,6 +69,30 @@ def verify_token(db, token, response: Response, user_agent=""):
     row = one(db.execute("SELECT * FROM login_tokens WHERE token_hash=?", (_h(token),)))
     if not row or row["used_at"] or row["expires_at"] < now():
         raise HTTPException(400, "このリンクは無効か期限切れです / link invalid or expired")
+    return _login(db, row, response, user_agent)
+
+
+MAX_CODE_ATTEMPTS = 5
+
+
+def verify_code(db, email, code, response: Response, user_agent=""):
+    """The 6-digit code from the newest unused mail for this address. Five wrong tries burn the code."""
+    email = normalize_email(email)
+    code = re.sub(r"\D", "", code or "")
+    row = one(db.execute(
+        "SELECT * FROM login_tokens WHERE email=? AND used_at IS NULL AND expires_at>? AND code_hash IS NOT NULL "
+        "ORDER BY created_at DESC LIMIT 1", (email, now())))
+    if not row or row["code_attempts"] >= MAX_CODE_ATTEMPTS:
+        raise HTTPException(400, "コードが無効か期限切れです。もう一度メールを送ってください / code invalid or expired")
+    if len(code) != 6 or not hmac.compare_digest(_h(code), row["code_hash"]):
+        db.execute("UPDATE login_tokens SET code_attempts=code_attempts+1 WHERE token_hash=?", (row["token_hash"],))
+        left = MAX_CODE_ATTEMPTS - row["code_attempts"] - 1
+        raise HTTPException(400, f"コードが違います（残り{left}回） / wrong code" if left > 0
+                            else "コードが無効になりました。もう一度メールを送ってください / code locked, request a new mail")
+    return _login(db, row, response, user_agent)
+
+
+def _login(db, row, response: Response, user_agent=""):
     db.execute("UPDATE login_tokens SET used_at=? WHERE token_hash=?", (now(), row["token_hash"]))
     user = one(db.execute("SELECT * FROM users WHERE email=?", (row["email"],)))
     is_new = user is None

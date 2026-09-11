@@ -82,6 +82,7 @@ export function grade(s) {
 
 const NAV = [
   ['/', 'うたう', 'sing'], ['/stats', 'きろく', 'stats'], ['/leaderboard', 'ランキング', 'ranking'], ['/profile', 'プロフィール', 'profile'],
+  ['/about', 'について', 'about'],
 ];
 export async function renderNav(active) {
   const me = await getMe().catch(() => null);
@@ -96,7 +97,18 @@ export async function renderNav(active) {
   const chip = el('div', { class: 'userchip' });
   if (me) chip.append(el('a', { href: '/profile', class: 'row', style: 'gap:8px' }, avatarEl(me), el('span', {}, me.display_name)));
   else chip.append(el('a', { href: '/login?next=' + encodeURIComponent(location.pathname + location.search) }, 'ログイン', el('span', { class: 'sub' }, 'login')));
-  header.replaceChildren(el('a', { class: 'logo', href: '/', title: 'karaoke.rodeo' }, 'カラオケ', el('em', {}, '.'), 'ロデオ'), nav, chip);
+  // Phones: logo + profile stay on the row, the nav folds into a burger menu that drops down under the header.
+  const burger = el('button', {
+    class: 'burger ghost', 'aria-expanded': 'false', 'aria-label': 'メニュー', title: 'メニュー / menu',
+    onclick: () => {
+      const open = header.classList.toggle('nav-open');
+      burger.setAttribute('aria-expanded', String(open));
+    },
+  }, '☰');
+  document.addEventListener('pointerdown', (e) => {
+    if (header.classList.contains('nav-open') && !header.contains(e.target)) burger.click();
+  });
+  header.replaceChildren(el('a', { class: 'logo', href: '/', title: 'karaoke.rodeo' }, 'カラオケ', el('em', {}, '.'), 'ロデオ'), nav, chip, burger);
   // Party mode is app-level: while one is live its strip belongs under the header of every page.
   // Loaded lazily — on the pages that own the mode, or anywhere once a party has been started here.
   if (me && (['/', '/play'].includes(location.pathname) || localStorage.getItem('karaoke_party'))) {

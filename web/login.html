@@ -7,7 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="theme-color" content="#0b0e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
 <style>
   .box { max-width: 420px; margin: 8vh auto 0; }
@@ -29,10 +36,15 @@
       <button class="primary" id="btn" type="submit">リンクを送る <span class="sub">send link</span></button>
     </form>
     <div id="out" class="stack" style="margin-top:14px"></div>
+    <form id="cf" class="stack" style="margin-top:14px" hidden>
+      <label class="field">メールに書いてある6桁のコード <span class="sub">6-digit code from the mail</span>
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required></label>
+      <button class="primary" id="cbtn" type="submit">コードでログイン <span class="sub">sign in with code</span></button>
+    </form>
   </div>
 </main>
 <script type="module">
-  import { api, renderNav, el, $, getMe, qs } from '/static/common.js';
+  import { api, renderNav, el, $, getMe, qs, toast } from '/static/common.js';
   await renderNav('/login');
   const next = qs('next') || '/';
   if (await getMe()) location.replace(next);
@@ -43,11 +55,25 @@
     $('out').replaceChildren();
     try {
       const r = await api('/api/auth/request', { method: 'POST', body: { email: $('email').value, next } });
-      $('out').append(el('div', { class: 'msg ok' }, `送りました。${$('email').value} のメールを確認してください（15分有効）。`));
-      if (r.dev_link) $('out').append(el('div', { class: 'msg' }, el('b', {}, 'DEV MODE: '), 'メールは送っていません。このリンクでログイン → ', el('a', { class: 'devlink', href: r.dev_link }, r.dev_link)));
+      $('out').append(el('div', { class: 'msg ok' }, `送りました。${$('email').value} のメールを確認してください（15分有効）。リンクを開くか、メールの6桁のコードを下に入力してください。`));
+      if (r.dev_link) $('out').append(el('div', { class: 'msg' }, el('b', {}, 'DEV MODE: '), 'メールは送っていません。このリンクでログイン → ', el('a', { class: 'devlink', href: r.dev_link }, r.dev_link), ` ／ コード: ${r.dev_code}`));
+      $('cf').hidden = false; $('code').focus();
     } catch (err) {
       $('out').append(el('div', { class: 'msg err' }, err.message));
       $('btn').disabled = false;
+    }
+  };
+  // The code path exists for installed (home-screen) apps: iOS gives them their own cookie jar, so a link opened
+  // from Mail logs Safari in, not the app. Typing the code from the same mail logs in right here.
+  $('cf').onsubmit = async (e) => {
+    e.preventDefault();
+    $('cbtn').disabled = true;
+    try {
+      const r = await api('/api/auth/code', { method: 'POST', body: { email: $('email').value, code: $('code').value } });
+      location.replace(r.next || next);
+    } catch (err) {
+      toast(err.message, 'err');
+      $('cbtn').disabled = false; $('code').select();
     }
   };
 </script>

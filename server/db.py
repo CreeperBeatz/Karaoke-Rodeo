@@ -8,7 +8,12 @@ from . import config
 
 SCHEMA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 # Append-only list of (version, sql). schema.sql is version 1.
-MIGRATIONS = []
+MIGRATIONS = [
+    # 2: login codes — the magic-link mail also carries a 6-digit code that can be typed into an installed app
+    #    (iOS keeps a home-screen app's cookies apart from Safari, so the link alone cannot log the app in).
+    (2, "ALTER TABLE login_tokens ADD COLUMN code_hash TEXT;\n"
+        "ALTER TABLE login_tokens ADD COLUMN code_attempts INTEGER NOT NULL DEFAULT 0;"),
+]
 
 
 def now():

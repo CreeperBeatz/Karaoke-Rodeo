@@ -17,6 +17,31 @@ const state = {
 await renderNav('/');
 const me = await requireLogin();
 
+// ---- top bar: collapsible (all widths); on phones the start button floats over the video instead ----
+const LS_CHROME = 'karaoke_play_chrome';
+const bar = $('bar');
+function setCollapsed(collapsed, persist = true) {
+  bar.classList.toggle('collapsed', collapsed);
+  const b = $('chromeBtn');
+  b.textContent = collapsed ? '▼' : '▲';
+  b.title = collapsed ? '設定を表示 / show controls' : '設定を隠す / hide controls';
+  b.setAttribute('aria-expanded', String(!collapsed));
+  if (persist) localStorage.setItem(LS_CHROME, collapsed ? 'collapsed' : 'open');
+}
+setCollapsed(localStorage.getItem(LS_CHROME) === 'collapsed', false);
+$('chromeBtn').onclick = () => setCollapsed(!bar.classList.contains('collapsed'));
+
+// On phones the start button floats over the video (and hides while the song runs); on desktop it sits in the bar.
+const phone = matchMedia('(max-width: 860px)');
+function placeStart() {
+  if (phone.matches) document.querySelector('.videobox').insertBefore($('startBtn'), $('stamp'));
+  else bar.insertBefore($('startBtn'), $('chromeBtn'));
+}
+placeStart();
+phone.addEventListener('change', placeStart);
+video.addEventListener('play', () => document.body.classList.add('running'));
+video.addEventListener('pause', () => document.body.classList.remove('running'));
+
 // ---- latency: account value, mirrored to localStorage for instant reuse ----
 $('latency').value = me.latency_ms ?? localStorage.getItem('karaoke_latency') ?? 140;
 $('latencyOut').textContent = $('latency').value + 'ms';
