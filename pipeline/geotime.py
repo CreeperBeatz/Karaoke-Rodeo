@@ -24,7 +24,7 @@ from pageshots import detect_bars_static
 from retime import Frames, colored_frac, SC
 from monophony import enforce_monophony
 
-from paths import MAPS_DIR as OUT  # noqa: E402
+from paths import map_path  # noqa: E402
 CLSN = ["main", "high", "low"]
 
 
@@ -110,7 +110,7 @@ def scan(which, step_s=0.5, hue0=None, workers=None):
     identical to a single sequential pass (verified: v2 ph/washed/samples equal)."""
     raw = pickle.load(open(SC + f"/raw_{which}.pkl", "rb"))
     prof = raw["prof"]; sw = raw["swatches"]
-    sm = json.load(open(rf"{OUT}\song_map_{which}.json", encoding="utf-8"))
+    sm = json.load(open(map_path(which), encoding="utf-8"))
     lattice = (sm["lattice"]["px_per_semitone"], sm["lattice"]["phase"])
     cap = cv2.VideoCapture(VIDEOS[which]); fps = cap.get(cv2.CAP_PROP_FPS)
     nf = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); cap.release()
@@ -369,7 +369,7 @@ def measure_sequential(path, need, plan, prof, sw):
 def build(which, geo, out_suffix=""):
     raw = pickle.load(open(SC + f"/raw_{which}.pkl", "rb"))
     prof = raw["prof"]; sw = raw["swatches"]
-    sm_path = rf"{OUT}\song_map_{which}.json"
+    sm_path = map_path(which)
     sm = json.load(open(sm_path, encoding="utf-8"))
     a_l, ph0 = sm["lattice"]["px_per_semitone"], sm["lattice"]["phase"]
     fps = geo["fps"]; washed = geo["washed"]
@@ -601,8 +601,7 @@ def build(which, geo, out_suffix=""):
     sm["n_pages"] = len(pages)
     sm["pages"] = [dict(vis_a=round(p["vis_a"], 3), t_end=round(p["t_end"], 3), R=round(p["R"], 2), T0=round(p["T0"], 4)) for p in pages]
     sm["method"] = "geotime"
-    if out_suffix:
-        sm_path = sm_path.replace(".json", out_suffix + ".json")
+    sm_path = map_path(which, out_suffix)
     json.dump(sm, open(sm_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"wrote {sm_path}: {len(notes)} notes, {len(pages)} pages")
 
