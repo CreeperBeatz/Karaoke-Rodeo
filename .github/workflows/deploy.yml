@@ -1,0 +1,22 @@
+name: deploy
+
+# Continuous deployment to the Raspberry Pi (karaoke.rodeo).
+# The Pi runs a self-hosted GitHub Actions runner (label: karaoke) that polls GitHub
+# outbound, so no inbound port / port-forward is needed — it works behind the Cloudflare Tunnel.
+# On every push to main, the runner pulls the new code and restarts the systemd services.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-pi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, karaoke]
+    steps:
+      - name: Pull latest and restart services
+        run: bash /home/dani/Karaoke-Rodeo/deploy/update.sh

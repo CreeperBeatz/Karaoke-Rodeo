@@ -9,6 +9,7 @@ never takes the worker down, and so the stage can be niced on the Pi.
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,10 @@ PIPELINE = os.path.join(config.ROOT, "pipeline")
 STAGES = ["download", "extract", "geotime", "anchor", "lyrics", "finalize"]
 WEIGHT = {"download": 10, "extract": 40, "geotime": 35, "anchor": 8, "lyrics": 5, "finalize": 2}
 LOG_KEEP = 40_000
-YTDLP_FORMAT = "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b"
+# H.264 first: OpenCV's bundled ffmpeg has no software AV1 decoder (every frame fails on the Pi), and YouTube
+# serves 720p60 as AV1 (format 398) when merely asked for "mp4". Anything else that slips through is transcoded below.
+YTDLP_FORMAT = ("bv*[height<=720][vcodec^=avc1]+ba[ext=m4a]/b[height<=720][vcodec^=avc1]/"
+                "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b")
 
 
 class Cancelled(Exception):
@@ -102,16 +106,58 @@ def ffmpeg_dir_for_ytdlp():
     return bindir
 
 
+def video_codec(path):
+    """Codec name of the first video stream ('h264', 'av1', 'vp9', ...) via ffprobe, or None if unknown."""
+    ff = paths.ffmpeg()
+    probe = os.path.join(os.path.dirname(ff), "ffprobe" + os.path.splitext(ff)[1])
+    if not os.path.exists(probe):
+        probe = shutil.which("ffprobe")
+    try:
+        if probe:
+            out = subprocess.run([probe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name",
+                                  "-of", "csv=p=0", path], capture_output=True, text=True, timeout=60).stdout
+            return out.strip().split(",")[0] or None
+        # no ffprobe (the imageio-ffmpeg wheel ships only ffmpeg): read the stream line from `ffmpeg -i`
+        err = subprocess.run([ff, "-hide_banner", "-i", path], capture_output=True, text=True, timeout=60).stderr
+        m = re.search(r"Video: (\w+)", err)
+        return m.group(1) if m else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def ensure_h264(con, jid, path):
+    """The pipeline decodes with OpenCV, which cannot decode AV1 (and VP9 unreliably); re-encode anything else."""
+    codec = video_codec(path)
+    log(con, jid, f"video codec: {codec or 'unknown'}\n")
+    if codec in (None, "h264"):
+        return
+    tmp = path[:-4] + ".h264.mp4"
+    log(con, jid, f"{codec} is not decodable by the extractor; transcoding to H.264 (slow on a Pi)\n")
+    run_cmd(con, jid, [paths.ffmpeg(), "-y", "-hide_banner", "-loglevel", "warning", "-stats", "-i", path,
+                       "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy",
+                       "-movflags", "+faststart", tmp])
+    if not os.path.exists(tmp) or os.path.getsize(tmp) < 1_000_000:
+        raise StageFailed("transcode to H.264 failed")
+    os.replace(tmp, path)
+
+
 def stage_download(con, job, song):
     sid = song["id"]
     d = paths.song_dir(sid)
     os.makedirs(d, exist_ok=True)
     cmd = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--newline", "--progress-delta", "5", "-f", YTDLP_FORMAT,
            "--merge-output-format", "mp4", "-o", os.path.join(d, "video.%(ext)s"), "--write-info-json",
-           "--write-thumbnail", "--convert-thumbnails", "jpg", "--ffmpeg-location", ffmpeg_dir_for_ytdlp(), song["youtube_url"]]
+           "--write-thumbnail", "--convert-thumbnails", "jpg", "--ffmpeg-location", ffmpeg_dir_for_ytdlp()]
+    # yt-dlp needs a JS runtime for YouTube now (deno); a user install lands in ~/.deno/bin, off the service's PATH
+    deno = shutil.which("deno") or next((p for p in [os.path.expanduser("~/.deno/bin/deno"), "/usr/local/bin/deno"]
+                                          if os.path.exists(p)), None)
+    if deno:
+        cmd += ["--js-runtimes", f"deno:{deno}"]
+    cmd.append(song["youtube_url"])
     run_cmd(con, job["id"], cmd)
     if not os.path.exists(os.path.join(d, "video.mp4")):
         raise StageFailed("yt-dlp finished but video.mp4 is missing")
+    ensure_h264(con, job["id"], os.path.join(d, "video.mp4"))
     for fn in os.listdir(d):
         if fn.startswith("video.") and fn.endswith((".jpg", ".webp", ".png")) and fn != "thumb.jpg":
             shutil.move(os.path.join(d, fn), os.path.join(d, "thumb.jpg"))
