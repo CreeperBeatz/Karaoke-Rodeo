@@ -1,8 +1,10 @@
 """karaoke.rodeo web server.  Run:  python -m server   (or uvicorn server.main:app)"""
+import hashlib
 import os
+import re
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -10,6 +12,7 @@ from . import config, db
 from .routers import admin, party, plays, profile, songs, stats
 
 WEB = os.path.join(config.ROOT, "web")
+STATIC = os.path.join(WEB, "static")
 PAGES = {"": "index.html", "login": "login.html", "play": "play.html", "stats": "stats.html", "leaderboard": "leaderboard.html",
          "profile": "profile.html", "admin": "admin.html", "label": "label.html", "songs": "index.html", "about": "about.html"}
 
@@ -17,7 +20,56 @@ app = FastAPI(title=config.APP_NAME, docs_url=None, redoc_url=None, openapi_url=
 db.migrate()
 for r in (profile, songs, plays, stats, party, admin):
     app.include_router(r.router)
-app.mount("/static", StaticFiles(directory=os.path.join(WEB, "static")), name="static")
+
+
+# --- cache busting -------------------------------------------------------------------------------
+# Cloudflare fronts the Pi, and on the free plan its Browser Cache TTL (4h) rewrites our
+# "Cache-Control: no-cache" into "max-age=14400" and caches /static/* at the edge on top of that.
+# A deploy's new CSS/JS could therefore stay invisible for hours, with no refresh able to fix it.
+# So every .js/.css URL is stamped with ?v=<hash of the static dir>: a deploy changes the URL, and
+# the only response that must be fresh is the HTML, which Cloudflare never caches (it is dynamic).
+def _asset_version():
+    h = hashlib.sha256()
+    for name in sorted(os.listdir(STATIC)):
+        if name.endswith((".js", ".css")):
+            with open(os.path.join(STATIC, name), "rb") as f:
+                h.update(name.encode() + f.read())
+    return h.hexdigest()[:10]
+
+
+ASSET_V = _asset_version()
+# The lookahead keeps /static/manifest.json from being read as /static/manifest.js + "on".
+_ASSET_URL = re.compile(r"/static/([A-Za-z0-9_.-]+\.(?:js|css))(?![\w.-])")
+_stamped = {}
+
+
+def _text(path, media_type, cache, status=200):
+    """A text file with every /static/*.js|css reference inside it stamped with ?v=ASSET_V.
+    The stamp has to reach the JS as well as the HTML: the modules import each other by absolute
+    path, and an unstamped import would pull a second, separate copy of common.js."""
+    mtime = os.stat(path).st_mtime_ns
+    hit = _stamped.get(path)
+    if hit is None or hit[0] != mtime:
+        with open(path, encoding="utf-8") as f:
+            hit = (mtime, _ASSET_URL.sub(rf"/static/\1?v={ASSET_V}", f.read()))
+        _stamped[path] = hit
+    return Response(hit[1], status_code=status, media_type=media_type, headers={"Cache-Control": cache})
+
+
+@app.get("/static/{name}")
+def static_file(name: str, v: str = ""):
+    """Serves /static; .js and .css go out stamped. Nested paths fall through to the mount below."""
+    path = os.path.normpath(os.path.join(STATIC, name))
+    if not path.startswith(STATIC) or not os.path.isfile(path):
+        raise StarletteHTTPException(404)
+    if name.endswith((".js", ".css")):
+        # A stamped URL names one exact build, so it can be cached hard; a bare one must revalidate.
+        return _text(path, "text/javascript" if name.endswith(".js") else "text/css",
+                     "public, max-age=31536000, immutable" if v else "no-cache")
+    return FileResponse(path)
+
+
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 @app.middleware("http")
@@ -39,12 +91,12 @@ async def http_exc(request: Request, exc: StarletteHTTPException):
     if request.url.path.startswith(("/api/", "/media/", "/avatars/")):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
     if exc.status_code == 404:
-        return FileResponse(os.path.join(WEB, "404.html"), status_code=404)
+        return _text(os.path.join(WEB, "404.html"), "text/html", "no-cache", status=404)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 
 def _page(name):
-    return FileResponse(os.path.join(WEB, name), media_type="text/html", headers={"Cache-Control": "no-cache"})
+    return _text(os.path.join(WEB, name), "text/html", "no-cache")
 
 
 @app.get("/")
