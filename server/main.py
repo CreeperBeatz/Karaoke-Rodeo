@@ -3,18 +3,21 @@ import hashlib
 import os
 import re
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import config, db
+from . import auth, config, db
 from .routers import admin, party, plays, profile, songs, stats
 
 WEB = os.path.join(config.ROOT, "web")
 STATIC = os.path.join(WEB, "static")
-PAGES = {"": "index.html", "login": "login.html", "play": "play.html", "stats": "stats.html", "leaderboard": "leaderboard.html",
-         "profile": "profile.html", "admin": "admin.html", "label": "label.html", "songs": "index.html", "about": "about.html"}
+# うたう / きろく / ランキング / プロフィール / について / 管理 are views of one document, app.html (see web/static/app.js);
+# the rest are documents of their own.
+PAGES = {"": "app.html", "songs": "app.html", "stats": "app.html", "leaderboard": "app.html", "profile": "app.html",
+         "admin": "app.html", "about": "app.html",
+         "login": "login.html", "play": "play.html", "label": "label.html", "welcome": "welcome.html"}
 
 app = FastAPI(title=config.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
 db.migrate()
@@ -26,12 +29,13 @@ for r in (profile, songs, plays, stats, party, admin):
 # Cloudflare fronts the Pi, and on the free plan its Browser Cache TTL (4h) rewrites our
 # "Cache-Control: no-cache" into "max-age=14400" and caches /static/* at the edge on top of that.
 # A deploy's new CSS/JS could therefore stay invisible for hours, with no refresh able to fix it.
-# So every .js/.css URL is stamped with ?v=<hash of the static dir>: a deploy changes the URL, and
+# So every .js/.css/.png URL is stamped with ?v=<hash of the static dir>: a deploy changes the URL, and
 # the only response that must be fresh is the HTML, which Cloudflare never caches (it is dynamic).
+# The icons are stamped too - a new app icon that stays cached for hours reads as a deploy that did not land.
 def _asset_version():
     h = hashlib.sha256()
     for name in sorted(os.listdir(STATIC)):
-        if name.endswith((".js", ".css")):
+        if name.endswith((".js", ".css", ".png")):
             with open(os.path.join(STATIC, name), "rb") as f:
                 h.update(name.encode() + f.read())
     return h.hexdigest()[:10]
@@ -39,12 +43,12 @@ def _asset_version():
 
 ASSET_V = _asset_version()
 # The lookahead keeps /static/manifest.json from being read as /static/manifest.js + "on".
-_ASSET_URL = re.compile(r"/static/([A-Za-z0-9_.-]+\.(?:js|css))(?![\w.-])")
+_ASSET_URL = re.compile(r"/static/([A-Za-z0-9_.-]+\.(?:js|css|png))(?![\w.-])")
 _stamped = {}
 
 
 def _text(path, media_type, cache, status=200):
-    """A text file with every /static/*.js|css reference inside it stamped with ?v=ASSET_V.
+    """A text file with every /static/*.js|css|png reference inside it stamped with ?v=ASSET_V.
     The stamp has to reach the JS as well as the HTML: the modules import each other by absolute
     path, and an unstamped import would pull a second, separate copy of common.js."""
     mtime = os.stat(path).st_mtime_ns
@@ -58,7 +62,7 @@ def _text(path, media_type, cache, status=200):
 
 @app.get("/static/{name}")
 def static_file(name: str, v: str = ""):
-    """Serves /static; .js and .css go out stamped. Nested paths fall through to the mount below."""
+    """Serves /static; .js, .css and .png go out stamped. Nested paths fall through to the mount below."""
     path = os.path.normpath(os.path.join(STATIC, name))
     if not path.startswith(STATIC) or not os.path.isfile(path):
         raise StarletteHTTPException(404)
@@ -66,6 +70,8 @@ def static_file(name: str, v: str = ""):
         # A stamped URL names one exact build, so it can be cached hard; a bare one must revalidate.
         return _text(path, "text/javascript" if name.endswith(".js") else "text/css",
                      "public, max-age=31536000, immutable" if v else "no-cache")
+    if name.endswith(".png") and v:
+        return FileResponse(path, headers={"Cache-Control": "public, max-age=31536000, immutable"})
     return FileResponse(path)
 
 
@@ -100,8 +106,9 @@ def _page(name):
 
 
 @app.get("/")
-def home():
-    return _page("index.html")
+def home(user=Depends(auth.current_user)):
+    """The front door: visitors get the landing page, singers go straight to the catalogue (/songs is always the catalogue)."""
+    return _page("welcome.html" if user is None else "app.html")
 
 
 @app.get("/p/{code}")

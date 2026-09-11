@@ -34,9 +34,9 @@ def magic_link_mail(link, code, minutes):
     )
     html = f"""<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Hiragino Sans,Meiryo,sans-serif;background:#0b0e1a;color:#eef2ff;padding:32px">
 <div style="max-width:520px;margin:0 auto;background:#131a2e;border:1px solid #232d4d;border-radius:16px;padding:28px 32px">
-<div style="font-size:22px;letter-spacing:2px;color:#35d6f0;margin-bottom:18px">karaoke<span style="color:#ff4d8f">.</span>rodeo</div>
+<div style="font-size:22px;letter-spacing:2px;color:#35d6f0;margin-bottom:18px">karaoke<span style="color:#ffc64b">.</span>rodeo</div>
 <p style="font-size:16px;line-height:1.6">ログインリンクです。ボタンを押すとログインします（{minutes}分間有効、1回のみ）。</p>
-<p style="margin:26px 0"><a href="{link}" style="background:#ff4d8f;color:#fff;text-decoration:none;font-weight:800;padding:12px 28px;border-radius:999px;display:inline-block">ログイン / Sign in</a></p>
+<p style="margin:26px 0"><a href="{link}" style="background:#ffc64b;color:#15120c;text-decoration:none;font-weight:800;padding:12px 28px;border-radius:999px;display:inline-block">ログイン / Sign in</a></p>
 <p style="font-size:14px;line-height:1.6;color:#c9d1f0">ホーム画面に追加したアプリや別の端末で開いている場合は、ログイン画面にこのコードを入力してください:<br>
 <span style="display:inline-block;margin-top:8px;font-size:30px;letter-spacing:8px;font-weight:800;color:#ffc64b;font-family:Consolas,Menlo,monospace">{code}</span></p>
 <p style="color:#8b93b8;font-size:13px;line-height:1.6">Open this link to sign in to karaoke.rodeo (valid {minutes} minutes, single use).<br>

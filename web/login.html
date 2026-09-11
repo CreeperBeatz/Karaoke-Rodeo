@@ -3,19 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>カラオケ.ロデオ — ログイン</title>
+<title>カラオケ.ロデオ - ログイン</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<!-- display=optional: a face is used only if it is ready at first paint - from cache it always is - so text never reflows
+     mid-transition (Google serves M PLUS as ~100 unicode-range subsets; with =swap each arrived a few ms apart and
+     each one re-laid the page out). The one-off cost is a fallback face for a glyph range seen for the first time. -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=M+PLUS+Rounded+1c:wght@400;700;800&display=optional" rel="stylesheet">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-<meta name="theme-color" content="#0b0e1a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
+<!-- the first API answers are requested here, before any module has loaded; api() in common.js takes them over -->
+<script>window.__pf={};["/api/me"].forEach(function(u){var p=fetch(u);p.catch(function(){});window.__pf[u]=p})</script>
+<!-- hold the first frame until <main> is parsed: by then nav-early.js has put the header back -->
+<link rel="expect" href="#page" blocking="render">
+<!-- Chromium: load the next page in the background while the pointer is on its link, so the swap is instant -->
+<script type="speculationrules">{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/play*","/p/*","/login*","/api/*","/label*","/media/*","/avatars/*"]}}]},"eagerness":"moderate"}]}</script>
 <style>
   .box { max-width: 420px; margin: 8vh auto 0; }
   .box .logo { font-size: 30px; display: block; text-align: center; margin-bottom: 22px; }
@@ -26,7 +38,8 @@
 </head>
 <body>
 <header class="top"></header>
-<main class="page">
+<script src="/static/nav-early.js"></script>
+<main class="page" id="page">
   <div class="box panel">
     <span class="logo" title="karaoke.rodeo">カラオケ<em>.</em>ロデオ</span>
     <h2>メールでログイン <span class="sub">magic link</span></h2>
@@ -36,6 +49,10 @@
       <button class="primary" id="btn" type="submit">リンクを送る <span class="sub">send link</span></button>
     </form>
     <div id="out" class="stack" style="margin-top:14px"></div>
+    <div id="guestBox" class="stack" style="margin-top:18px;padding-top:14px;border-top:3px dashed color-mix(in srgb,var(--line) 30%,transparent)" hidden>
+      <button id="guestBtn">ゲストとして続ける <span class="sub">continue as guest</span></button>
+      <span class="mute" style="font-size:12.5px">点数はその場で出ますが、保存はされません。<span class="sub">You get your score, but nothing is saved.</span></span>
+    </div>
     <form id="cf" class="stack" style="margin-top:14px" hidden>
       <label class="field">メールに書いてある6桁のコード <span class="sub">6-digit code from the mail</span>
         <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required></label>
@@ -44,10 +61,15 @@
   </div>
 </main>
 <script type="module">
-  import { api, renderNav, el, $, getMe, qs, toast } from '/static/common.js';
+  import { api, renderNav, el, $, getMe, qs, setGuest, toast } from '/static/common.js';
   await renderNav('/login');
   const next = qs('next') || '/';
   if (await getMe()) location.replace(next);
+  // Sent here by tapping a song? Then there is something to be a guest *for*.
+  if (next.startsWith('/play')) {
+    $('guestBox').hidden = false;
+    $('guestBtn').onclick = () => { setGuest(true); location.href = next; };
+  }
   if (qs('error')) $('out').append(el('div', { class: 'msg err' }, 'このリンクは無効か期限切れです。もう一度送ってください。'));
   $('f').onsubmit = async (e) => {
     e.preventDefault();

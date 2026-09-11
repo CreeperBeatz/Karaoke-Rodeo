@@ -1,14 +1,14 @@
 {
   "name": "カラオケ.ロデオ",
   "short_name": "カラオケ",
-  "description": "おうちカラオケ採点 — karaoke.rodeo",
+  "description": "おうちカラオケ採点 - karaoke.rodeo",
   "lang": "ja",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0e1a",
-  "theme_color": "#0b0e1a",
+  "background_color": "#fffdf3",
+  "theme_color": "#fffdf3",
   "icons": [
     {
       "src": "/static/icon-192.png",

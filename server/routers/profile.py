@@ -36,7 +36,7 @@ def auth_request(body: LoginIn, request: Request, db=Depends(get_db)):
 
 @router.post("/api/auth/code")
 def auth_code(body: CodeIn, request: Request, response: Response, db=Depends(get_db)):
-    """Log in with the 6-digit code from the mail — for installed apps, where the link would open in the browser."""
+    """Log in with the 6-digit code from the mail - for installed apps, where the link would open in the browser."""
     user, is_new, next_url = auth.verify_code(db, body.email, body.code, response, request.headers.get("user-agent", ""))
     return {"ok": True, "is_new": is_new,
             "next": "/profile?welcome=1" + (f"&next={next_url}" if next_url else "") if is_new else (next_url or "/")}

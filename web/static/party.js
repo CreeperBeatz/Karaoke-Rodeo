@@ -1,7 +1,7 @@
 // Party mode as an app-level mode: started from the home page, then a strip rides along on every page
 // until the host ends it.  Owns the party state, the polling, and the strip UI; the play page asks it
 // who is singing (and in which colour).
-import { api, el, $, avatarEl, fmtScore, toast } from '/static/common.js';
+import { api, el, $, avatarEl, fmtScore, confirmDialog, toast } from '/static/common.js';
 
 const LS = 'karaoke_party';           // remembers a live party so the strip mounts on every page
 const POLL_MS = 3000;
@@ -84,7 +84,7 @@ export async function mountStrip() {
 function stripEl() {
   let s = $('partystrip');
   if (!s) {
-    s = el('div', { id: 'partystrip', class: 'partystrip' });
+    s = el('div', { id: 'partystrip', class: 'partystrip' }, el('div', { class: 'inner' }));
     const header = document.querySelector('header.top');
     if (!header || !header.parentNode) return null;
     header.after(s);
@@ -96,25 +96,42 @@ function renderStrip() {
   const s = stripEl();
   if (!s) return;
   const p = partyLive();
-  if (!p) { s.hidden = true; s.replaceChildren(); document.body.classList.remove('has-party'); return; }
-  s.hidden = false;
+  const inner = s.firstElementChild;
+  // Rolling up takes as long as the transition, so the contents are cleared only once it is closed - and only
+  // if no new party started in the meantime.
+  if (!p) {
+    document.body.classList.remove('has-party');
+    if (!s.classList.contains('on')) return;
+    s.classList.remove('on');
+    setTimeout(() => { if (!partyLive()) inner.replaceChildren(); }, 320);
+    return;
+  }
   document.body.classList.add('has-party');
   const queue = p.members.filter((m) => m.queue_pos != null).sort((a, b) => a.queue_pos - b.queue_pos).map((m) => m.id);
-  s.replaceChildren(
+  inner.replaceChildren(
     el('span', { class: 'pl' }, '🎉 パーティー'),
     el('span', { class: 'pcode', title: p.join_url }, p.code),
     el('div', { class: 'pmembers' }, ...p.members.map((m) => el('button', {
       class: 'pmember' + (m.id === p.current_member_id ? ' current' : ''),
       style: `--seat:${m.color}`, title: m.id === p.current_member_id ? 'いま歌っている人' : 'この人にマイクを渡す',
       onclick: () => setSinger(m.id),
-    }, el('i', { class: 'dot' }), avatarEl(m), el('span', { class: 'nm' }, m.name),
+    }, el('i', { class: 'dot' }), avatarEl(m), el('span', { class: 'nm noruby' }, m.name),
       queue.includes(m.id) ? el('span', { class: 'q' }, `次${queue.indexOf(m.id) + 1}`) : null,
       m.best != null ? el('span', { class: 'b' }, fmtScore(m.best)) : null))),
     el('button', { class: 'ghost small', onclick: showQr }, 'QR・あいことば'),
     el('button', {
-      class: 'ghost small', onclick: async () => { if (confirm('パーティーを終了しますか？')) await endParty(); },
+      class: 'ghost small',
+      onclick: async () => {
+        const yes = await confirmDialog({
+          title: 'パーティーを終了しますか？', okEn: 'end the party', ok: '終了する',
+          body: 'みんなの参加が終わります。点数の記録は残ります。',
+        });
+        if (yes) await endParty();
+      },
     }, 'パーティー終了'),
   );
+  // roll it down on the frame after it is filled, so the grid has something to animate to
+  if (!s.classList.contains('on')) requestAnimationFrame(() => s.classList.add('on'));
 }
 
 function showQr() {

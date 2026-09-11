@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カラオケ.ロデオ</title>
+<!-- The app shell: one document for うたう / きろく / ランキング / プロフィール / について / 管理. app.js reads the
+     URL, fetches the view's data while whatever is on screen stays live, then swaps <main> inside a view
+     transition - so the wipe always reveals a finished page. Play, login, party join and the labeler stay their
+     own documents. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- display=optional: a face is used only if it is ready at first paint - from cache it always is - so text never reflows
+     mid-transition (Google serves M PLUS as ~100 unicode-range subsets; with =swap each arrived a few ms apart and
+     each one re-laid the page out). The one-off cost is a fallback face for a glyph range seen for the first time. -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=M+PLUS+Rounded+1c:wght@400;700;800&display=optional" rel="stylesheet">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
+<script>
+  // Chrome/Edge (Android + desktop) announce installability early; keep the event so プロフィール's button can trigger it.
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installPrompt = e; window.dispatchEvent(new Event('installready')); });
+</script>
+<link rel="stylesheet" href="/static/common.css">
+<link rel="stylesheet" href="/static/views.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
+<!-- the first view's API answers are requested here, before any module has loaded; api() in common.js takes them over -->
+<script>(function(){var p=location.pathname,tz=new Date().getTimezoneOffset(),R={"/":["/api/songs","/api/leaderboard"],"/songs":["/api/songs","/api/leaderboard"],"/stats":["/api/me/stats?tz="+tz],"/leaderboard":["/api/songs","/api/leaderboard"],"/admin":["/api/admin/songs"]};window.__pf={};["/api/me"].concat(R[p]||[]).forEach(function(u){var q=fetch(u);q.catch(function(){});window.__pf[u]=q})})()</script>
+<!-- hold the first frame until <main> is parsed: by then nav-early.js has put the header back -->
+<link rel="expect" href="#page" blocking="render">
+</head>
+<body>
+<header class="top"></header>
+<script src="/static/nav-early.js"></script>
+<main class="page" id="page"></main>
+<footer class="foot">カラオケ.ロデオ · karaoke.rodeo</footer>
+<div id="tip" class="tooltip" hidden></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

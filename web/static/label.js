@@ -2,8 +2,8 @@
 //
 // Model: a song is a list of PAGES; on a page the playhead sweeps linearly, so a
 // bar's time is t = T0 + x / R. We edit bar GEOMETRY (x0, x1, pitch row) on a
-// still frame of the page — normally the frame just before the page flips, when
-// every bar is coloured — and the server recomputes all times on save.
+// still frame of the page - normally the frame just before the page flips, when
+// every bar is coloured - and the server recomputes all times on save.
 "use strict";
 
 const $ = (id) => document.getElementById(id);

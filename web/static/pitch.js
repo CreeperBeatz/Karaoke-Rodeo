@@ -12,7 +12,9 @@ class PitchDetector {
   }
 
   async start(echoCancellation = true, deviceId = null) {
-    if (!this.ctx) this.ctx = new AudioContext();
+    // Older iOS Safari only has the prefixed constructor. Built here rather than at page load: start() is
+    // reached from a tap, and a context created inside a gesture starts running instead of suspended.
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
     if (this.src) this.src.disconnect();
     const stream = await navigator.mediaDevices.getUserMedia({

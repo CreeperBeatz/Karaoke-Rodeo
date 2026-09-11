@@ -3,34 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>カラオケ.ロデオ — うたう</title>
+<title>カラオケ.ロデオ - うたう</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<!-- display=optional: a face is used only if it is ready at first paint - from cache it always is - so text never reflows
+     mid-transition (Google serves M PLUS as ~100 unicode-range subsets; with =swap each arrived a few ms apart and
+     each one re-laid the page out). The one-off cost is a fallback face for a glyph range seen for the first time. -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=M+PLUS+Rounded+1c:wght@400;700;800&display=optional" rel="stylesheet">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-<meta name="theme-color" content="#0b0e1a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
+<!-- the first API answers are requested here, before any module has loaded; api() in common.js takes them over -->
+<script>window.__pf={};["/api/me"].forEach(function(u){var p=fetch(u);p.catch(function(){});window.__pf[u]=p})</script>
+<!-- hold the first frame until <main> is parsed: by then nav-early.js has put the header back -->
+<link rel="expect" href="#page" blocking="render">
+<!-- Chromium: load the next page in the background while the pointer is on its link, so the swap is instant -->
+<script type="speculationrules">{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/play*","/p/*","/login*","/api/*","/label*","/media/*","/avatars/*"]}}]},"eagerness":"moderate"}]}</script>
 <style>
   /* The stage fills the viewport and never scrolls: the note lane must stay visible while singing,
      so the video is given the leftover space (object-fit: contain) instead of sizing itself. */
   body.playpage { height: 100vh; height: 100dvh; overflow: hidden; }
-  .bar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; flex: none; }
-  .bar .song { display: flex; flex-direction: column; gap: 0; background: none; border: none; }
+  .bar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-bottom: 3px solid var(--line); flex-wrap: wrap; flex: none; }
+  .bar .song { display: flex; flex-direction: column; gap: 0; background: none; border: none; box-shadow: none; }
   .bar .song .t { font-weight: 800; font-size: 16px; } .bar .song .a { color: var(--ink-dim); font-size: 12px; }
   .bar .sp { flex: 1; }
   .ctl { display: flex; align-items: center; gap: 6px; color: var(--ink-dim); font-size: 12px; min-width: 0; }
   .ctl input[type=range] { min-width: 0; max-width: 130px; }
   .ctl output { color: var(--ink); min-width: 48px; text-align: right; }
   #micSel { max-width: 160px; font-size: 12px; padding: 4px 6px; }
-  .miclevel { width: 70px; height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--line); }
-  .miclevel i { display: block; height: 100%; width: 0; background: var(--cyan); }
+  .miclevel { width: 70px; height: 10px; border-radius: 5px; background: var(--panel-2); overflow: hidden; border: 2px solid var(--line); }
+  .miclevel i { display: block; height: 100%; width: 0; background: var(--cyan); transition: width .06s linear; }
   #chromeBtn { padding: 4px 8px; font-size: 12px; line-height: 1; }
+  /* Why the mic did not open, and what to do about it - its own row in the bar, only ever shown on failure. */
+  .micmsg { flex: 1 1 100%; order: 11; margin: 2px 0 4px; padding: 8px 12px; border-radius: var(--r-field);
+            background: var(--panel-2); border: 3px solid var(--red-t); color: var(--red-t);
+            font-size: 13px; font-weight: 700; line-height: 1.5; }
   .ctls { display: contents; }                   /* the controls sit inline in the bar */
   /* Collapsed bar: the controls and the start button fold away, title · artist share one row and only the expand
      button stays on the right. Same at every width; the site header is untouched. Persisted in localStorage. */
@@ -41,42 +57,53 @@
   .bar.collapsed .song .a { white-space: nowrap; }
 
   main.play { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 260px;
-              grid-template-rows: minmax(0, 1fr); gap: 14px; padding: 12px 16px 0; }
-  .videobox { position: relative; background: #000; border-radius: 12px; overflow: hidden; height: 100%; min-height: 0; }
+              grid-template-rows: minmax(0, 1fr); gap: 14px; padding: 12px 16px 4px; }
+  /* the three stage panels are screens pinned to the page: 3px outline + the system's hard shadow, like every card */
+  .videobox { position: relative; background: #000; border: 3px solid var(--line); border-radius: var(--r-card); overflow: hidden; height: 100%; min-height: 0;
+              box-shadow: 4px 4px 0 var(--shadow); }
   .videobox video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
-  .stamp { position: absolute; right: 4%; top: 8%; font-family: var(--font-led); font-size: 54px; pointer-events: none; opacity: 0;
-           transform: rotate(-8deg) scale(1.6); text-shadow: 0 0 18px currentColor; user-select: none; }
+  .stamp { position: absolute; right: 4%; top: 8%; font-family: var(--font-num); font-size: 54px; pointer-events: none;
+           transform: rotate(-8deg) scale(0); text-shadow: 3px 3px 0 rgba(21, 18, 12, .9); user-select: none; }
   .stamp.show { animation: slam .9s ease-out; }
-  @keyframes slam { 0% { opacity: 0; transform: rotate(-8deg) scale(2.2); } 18% { opacity: 1; transform: rotate(-8deg) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: rotate(-8deg) scale(1); } }
-  @media (prefers-reduced-motion: reduce) { .stamp.show { animation: none; opacity: 1; transform: rotate(-8deg) scale(1); } }
+  /* it slams down and is yanked away again - nothing in this app fades, and a stamp least of all */
+  @keyframes slam { 0% { transform: rotate(-8deg) scale(2.2); } 18%, 78% { transform: rotate(-8deg) scale(1); } 100% { transform: rotate(-8deg) scale(0); } }
+  @media (prefers-reduced-motion: reduce) { .stamp.show { animation: none; transform: rotate(-8deg) scale(1); } }
 
-  aside.score { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
-                display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
-  .scorelabel { color: var(--ink-dim); font-size: 12px; letter-spacing: 3px; }
-  .score { font-family: var(--font-led); font-size: 52px; line-height: 1; color: var(--gold); text-shadow: 0 0 16px rgba(255, 198, 75, .45); font-variant-numeric: tabular-nums; }
+  /* the score panel is paper like every other card; only its numbers are LED */
+  aside.score { background: var(--panel); color: var(--ink); border: 3px solid var(--line); border-radius: var(--r-card); padding: 14px;
+                display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; box-shadow: 4px 4px 0 var(--shadow); }
+  aside.score .dim { color: var(--ink-dim); }
+  aside.score button.ghost { color: var(--ink-dim); } aside.score button.ghost:hover { color: var(--ink); border-color: var(--line-soft); }
+  .scorelabel { color: var(--ink-dim); font-size: 12px; letter-spacing: 3px; font-weight: 800; }
+  .score { font-family: var(--font-num); font-size: 52px; line-height: 1; color: var(--accent-t); font-variant-numeric: tabular-nums; }
   .score small { font-size: 26px; }
   .statrow { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-dim); }
-  .statrow b { color: var(--ink); font-family: var(--font-led); font-size: 16px; }
-  .combo { font-family: var(--font-led); color: var(--cyan); font-size: 22px; min-height: 26px; }
+  .statrow b { color: var(--ink); font-family: var(--font-num); font-size: 16px; }
+  .combo { font-family: var(--font-num); color: var(--cyan-t); font-size: 22px; min-height: 26px; }
   /* the singer chip carries the party seat colour that the pitch line is drawn in */
-  .singer { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--panel-2); border-radius: 10px; font-size: 13px;
-            border-left: 4px solid var(--seat, var(--cyan)); }
+  .singer { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--panel-2); border-radius: var(--r-field); font-size: 13px;
+            border: 3px solid var(--line); border-left-width: 8px; border-left-color: var(--seat, var(--cyan)); }
   .singer .avatar { width: 28px; height: 28px; font-size: 12px; }
-  .singer .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--seat, var(--cyan)); box-shadow: 0 0 8px var(--seat, var(--cyan)); flex: none; }
+  .singer .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--seat, var(--cyan)); border: 2px solid var(--line); flex: none; }
 
-  .lanewrap { padding: 0 16px 12px; flex: none; }
-  #lane { width: 100%; height: clamp(120px, 21vh, 190px); display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .lanewrap { padding: 6px 16px 14px; flex: none; }
+  #lane { width: 100%; height: clamp(120px, 21vh, 190px); display: block; background: var(--panel-2); border: 3px solid var(--line); border-radius: var(--r-card);
+          box-shadow: 4px 4px 0 var(--shadow); }
 
-  dialog.result { text-align: center; padding: 34px 46px; }
-  dialog .final { font-family: var(--font-led); font-size: 96px; color: var(--gold); text-shadow: 0 0 28px rgba(255, 198, 75, .55); margin: 8px 0 2px; }
-  dialog .grade { font-size: 22px; font-weight: 800; color: var(--pink); margin-bottom: 8px; }
-  dialog .pb { color: var(--gold); font-weight: 800; font-size: 15px; min-height: 20px; }
+  /* The screen every play ends on, so it has to fit the narrowest phone: the padding and the big number are
+     sized against the viewport, and the five counters wrap instead of forcing the dialog wider than the screen. */
+  dialog.result { text-align: center; padding: clamp(18px, 5vw, 34px) clamp(16px, 5vw, 46px);
+                  width: max-content; max-width: min(560px, calc(100vw - 24px)); }
+  dialog .final { font-family: var(--font-num); font-size: clamp(56px, 17vw, 96px); color: var(--accent-t); margin: 8px 0 2px; }
+  dialog .grade { font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+  dialog .pb { color: var(--accent-t); font-weight: 800; font-size: 15px; min-height: 20px; }
   dialog .rank { color: var(--ink-dim); font-size: 13px; min-height: 18px; }
-  dialog .stats { display: flex; gap: 22px; justify-content: center; margin: 16px 0 20px; color: var(--ink-dim); font-size: 13px; }
-  dialog .stats b { display: block; font-family: var(--font-led); font-size: 26px; color: var(--ink); }
+  dialog .stats { display: flex; flex-wrap: wrap; gap: 10px clamp(12px, 4vw, 22px); justify-content: center;
+                  margin: 16px 0 20px; color: var(--ink-dim); font-size: 13px; }
+  dialog .stats b { display: block; font-family: var(--font-num); font-size: clamp(20px, 6vw, 26px); color: var(--ink); }
   dialog .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
-  /* Phone: video, then the lane, then a compact score strip — all three on screen at once.
+  /* Phone: video, then the lane, then a compact score strip - all three on screen at once.
      display:contents lets the three panels order themselves directly in the page's flex column. */
   @media (max-width: 860px) {
     main.play { display: contents; }
@@ -106,22 +133,54 @@
                           font-size: 18px; padding: 12px 28px; box-shadow: 0 8px 28px rgba(0, 0, 0, .5); }
     body.running .videobox #startBtn { display: none; }
   }
+
+  /* Landscape phone: wide but very short, so the portrait stack (video over lane over score) cannot fit and the
+     panels end up squeezing each other. Go back to two columns - video beside a narrow score - with the lane
+     underneath, and trim the chrome so the video still gets most of the height. */
+  @media (max-width: 860px) and (orientation: landscape) and (max-height: 560px) {
+    main.play { display: grid; grid-template-columns: minmax(0, 1fr) clamp(150px, 26vw, 210px);
+                grid-template-rows: minmax(0, 1fr); gap: 8px; padding: 6px 10px 0; }
+    .videobox { order: 0; margin: 0; flex: 1 1 auto; height: 100%; min-height: 0; }
+    .lanewrap { order: 0; padding: 6px 10px 6px; }
+    #lane { height: clamp(58px, 15dvh, 92px); }
+    /* the score goes back to a column, but a compact one: the label rows carry the counts at a smaller size */
+    aside.score { order: 0; margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+                  gap: 3px; padding: 8px 10px; }
+    aside.score .scorelabel { display: block; font-size: 10px; letter-spacing: 2px; }
+    .score { font-size: 26px; } .score small { font-size: 14px; }
+    .statrow { font-size: 11px; } .statrow b { font-size: 13px; }
+    .combo { font-size: 14px; min-height: 0; }
+    .singer { padding: 4px 7px; font-size: 11px; } .singer .avatar { width: 20px; height: 20px; font-size: 10px; }
+    #myBest, aside.score .hint { display: none; }
+    .bar, .bar.collapsed { padding: 3px 10px; }
+    /* a 66px header is a sixth of a landscape phone's height: shrink it rather than take it away, so the
+       nav and the profile menu are still where they always are */
+    header.top { padding: 3px 12px; gap: 10px; }
+    header.top .logo { font-size: 16px; } header.top .logo img { width: 22px; height: 22px; }
+    header.top .userbtn { padding: 2px; } header.top .userbtn .avatar { width: 26px; height: 26px; font-size: 11px; }
+    header.top nav.main a { padding: 4px 10px; font-size: 12.5px; }
+    .stamp { font-size: 34px; }
+    /* the start button stays over the video, just smaller */
+    .videobox #startBtn { font-size: 15px; padding: 9px 20px; }
+  }
 </style>
 </head>
 <body class="playpage">
 <header class="top"></header>
+<script src="/static/nav-early.js"></script>
 <div class="bar" id="bar">
-  <div class="song"><span class="t" id="title">…</span><span class="a" id="artist"></span></div>
+  <div class="song noruby"><span class="t" id="title">…</span><span class="a" id="artist"></span></div>
   <div class="sp"></div>
   <div class="ctls" id="ctls">
     <select id="micSel" hidden title="マイク"></select>
     <div class="ctl" title="マイク入力レベル"><span>MIC</span><div class="miclevel"><i id="micLevel"></i></div></div>
     <div class="ctl latency" title="判定の時間ズレ補正"><span>遅延</span><input id="latency" type="range" min="0" max="400" step="10"><output id="latencyOut"></output></div>
   </div>
-  <button id="startBtn" class="primary" disabled>マイク準備中…</button>
+  <button id="startBtn" class="primary">🎤 マイクを許可する</button>
+  <div id="micMsg" class="micmsg" hidden></div>
   <button id="chromeBtn" class="ghost small" aria-expanded="true">▲</button>
 </div>
-<main class="play">
+<main class="play" id="page">
   <div class="videobox">
     <video id="video" controls playsinline preload="metadata"></video>
     <div id="stamp" class="stamp"></div>
@@ -150,6 +209,7 @@
     <div>PERFECT<b id="rPerfect">0</b></div><div>GREAT<b id="rGreat">0</b></div><div>GOOD<b id="rGood">0</b></div><div>MISS<b id="rMiss">0</b></div><div>MAX COMBO<b id="rCombo">0</b></div>
   </div>
   <div class="btns">
+    <button class="primary" id="rLogin" hidden>ログインして記録を残す <span class="sub">sign in to keep this</span></button>
     <button class="primary" id="again">もう一度 <span class="sub">again</span></button>
     <a href="/"><button>曲をえらぶ</button></a>
     <a href="/stats"><button class="ghost">きろくを見る</button></a>

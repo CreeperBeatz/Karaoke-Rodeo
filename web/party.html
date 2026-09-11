@@ -3,34 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>カラオケ.ロデオ — パーティー</title>
+<title>カラオケ.ロデオ - パーティー</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+<!-- display=optional: a face is used only if it is ready at first paint - from cache it always is - so text never reflows
+     mid-transition (Google serves M PLUS as ~100 unicode-range subsets; with =swap each arrived a few ms apart and
+     each one re-laid the page out). The one-off cost is a fallback face for a glyph range seen for the first time. -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=M+PLUS+Rounded+1c:wght@400;700;800&display=optional" rel="stylesheet">
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-<meta name="theme-color" content="#0b0e1a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
+<!-- the first API answers are requested here, before any module has loaded; api() in common.js takes them over -->
+<script>window.__pf={};["/api/me"].forEach(function(u){var p=fetch(u);p.catch(function(){});window.__pf[u]=p})</script>
+<!-- hold the first frame until <main> is parsed: by then nav-early.js has put the header back -->
+<link rel="expect" href="#page" blocking="render">
+<!-- Chromium: load the next page in the background while the pointer is on its link, so the swap is instant -->
+<script type="speculationrules">{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/play*","/p/*","/login*","/api/*","/label*","/media/*","/avatars/*"]}}]},"eagerness":"moderate"}]}</script>
 <style>
   main.page { max-width: 520px; }
-  .code { font-family: var(--font-led); font-size: 30px; letter-spacing: 4px; color: var(--cyan); }
-  .big { width: 100%; padding: 16px; font-size: 20px; border-radius: 16px; }
-  .big.on { background: var(--gold); border-color: var(--gold); color: #1a1400; box-shadow: 0 0 18px rgba(255, 198, 75, .4); }
-  .now { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--panel-2); border-radius: 12px;
-         border-left: 5px solid var(--seat, var(--line)); }
-  .list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .code { font-family: var(--font-num); font-size: 30px; letter-spacing: 4px; color: var(--cyan-t); }
+  .big { width: 100%; padding: 16px; font-size: 20px; }
+  .big.on { background: var(--accent); color: #1a1400; }
+  .now { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--panel-2); border: 3px solid var(--line); border-radius: var(--r-card);
+         border-left: 8px solid var(--seat, var(--line)); }
+  .list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 2px solid var(--line-soft); }
   .list li:last-child { border: none; } .list ul { list-style: none; margin: 0; padding: 0; }
-  .list .s { margin-left: auto; font-family: var(--font-led); color: var(--gold); font-size: 18px; }
+  .list .s { margin-left: auto; font-family: var(--font-num); color: var(--accent-t); font-size: 18px; }
   .seat { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--seat, var(--line)); box-shadow: 0 0 7px var(--seat, transparent); }
   input[type=text], input[type=email] { font-size: 18px; padding: 12px 14px; width: 100%; }
-  /* two ways in: a nickname, or an account — neither should feel like the long way round */
+  /* two ways in: a nickname, or an account - neither should feel like the long way round */
   .ways { display: grid; gap: 10px; }
-  .way { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .way { background: var(--panel-2); border: 3px solid var(--line); border-radius: var(--r-card); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .way h3 { margin: 0; color: var(--ink); font-size: 14px; letter-spacing: 0; }
   .way .why { color: var(--ink-dim); font-size: 12px; line-height: 1.55; margin: 0; }
   .or { text-align: center; color: var(--ink-mute); font-size: 12px; }
@@ -39,7 +51,8 @@
 </head>
 <body>
 <header class="top"></header>
-<main class="page stack" style="gap:14px">
+<script src="/static/nav-early.js"></script>
+<main class="page stack" id="page" style="gap:14px">
   <div class="panel row spread"><div><div class="dim" style="font-size:12px">パーティー <span class="sub">party</span></div><div class="code" id="code"></div></div><div id="status" class="dim"></div></div>
 
   <section class="panel stack" id="join" hidden>
@@ -52,12 +65,12 @@
       </div>
       <div class="way" id="wayAccount">
         <h3>アカウントで参加</h3>
-        <p class="why">点数が自分の記録として残り、上達グラフとランキングに入ります。パスワードはありません — メールに届くリンクを開くだけで、この画面に戻ってきます。</p>
+        <p class="why">点数が自分の記録として残り、上達グラフとランキングに入ります。パスワードはありません - メールに届くリンクを開くだけで、この画面に戻ってきます。</p>
         <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
         <button class="primary big" id="sendLink">ログインリンクを送る <span class="sub">send login link</span></button>
         <div id="mailOut" class="stack"></div>
       </div>
-      <div class="or">— または —</div>
+      <div class="or">- または -</div>
       <div class="way" id="wayGuest">
         <h3>ゲストで参加</h3>
         <p class="why">ニックネームだけですぐ歌えます。点数はこのパーティーの中だけに残ります（あとでログインすれば引き継げます）。</p>
@@ -107,7 +120,7 @@
       $('now').style.setProperty('--seat', cur ? cur.color : 'transparent');
       $('now').replaceChildren(cur ? avatarEl(cur, 'lg') : '', el('div', {},
         el('div', { class: 'dim', style: 'font-size:12px' }, 'いま歌っているのは'),
-        el('b', { style: 'font-size:18px' }, cur ? cur.name : '—')));
+        el('b', { style: 'font-size:18px', class: 'noruby' }, cur ? cur.name : '-')));
       $('nextBtn').className = 'big' + (mine.queue_pos != null ? ' on' : '');
       $('nextBtn').textContent = mine.queue_pos != null
         ? `順番待ち ${p.members.filter((m) => m.queue_pos != null && m.queue_pos <= mine.queue_pos).length}番目（タップで取り消し）`
@@ -117,13 +130,13 @@
     }
     $('members').replaceChildren(...p.members.map((m) => el('li', {},
       el('i', { class: 'seat', style: `--seat:${m.color}` }), avatarEl(m),
-      el('span', {}, m.name, m.id === p.current_member_id ? ' 🎤' : '', m.queue_pos != null ? el('span', { class: 'pink' }, ` 次${m.queue_pos}`) : ''),
+      el('span', {}, el('span', { class: 'noruby' }, m.name), m.id === p.current_member_id ? ' 🎤' : '', m.queue_pos != null ? el('span', { class: 'accent' }, ` 次${m.queue_pos}`) : ''),
       m.best != null ? el('span', { class: 's' }, fmtScore(m.best)) : '')));
   }
   async function loadBoard() {
     try {
       const b = await api(`/api/party/${code}/board`);
-      $('plays').replaceChildren(...b.plays.slice(0, 30).map((r) => el('li', {}, avatarEl(r), el('span', {}, el('b', {}, r.name), ' ', el('span', { class: 'dim' }, r.title_jp)), el('span', { class: 's' }, fmtScore(r.score)))));
+      $('plays').replaceChildren(...b.plays.slice(0, 30).map((r) => el('li', {}, avatarEl(r), el('span', {}, el('b', { class: 'noruby' }, r.name), ' ', el('span', { class: 'dim noruby' }, r.title_jp)), el('span', { class: 's' }, fmtScore(r.score)))));
       if (!b.plays.length) $('plays').append(el('li', { class: 'mute' }, 'まだ記録なし'));
     } catch (e) { /* ignore */ }
   }

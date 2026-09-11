@@ -3,20 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>カラオケ.ロデオ — 404</title>
+<title>カラオケ.ロデオ - 404</title>
 <link rel="icon" href="/static/favicon.png" type="image/png">
 <link rel="manifest" href="/static/manifest.json">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-<meta name="theme-color" content="#0b0e1a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="カラオケ.ロデオ">
 <link rel="stylesheet" href="/static/common.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
 </head>
 <body>
 <main class="page" style="text-align:center;padding-top:14vh">
-  <div class="led" style="font-size:72px;color:var(--pink)">404</div>
+  <div class="readout" style="font-size:72px;color:var(--accent-t)">404</div>
   <p class="dim">そのページはありません / not found</p>
   <a href="/">← ホームへ</a>
 </main>

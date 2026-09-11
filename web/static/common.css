@@ -1,170 +1,403 @@
-/* karaoke.rodeo — shared look (dark stage, LED digits, rounded JP sans) */
+/* karaoke.rodeo - the design system. Spec: DESIGN.md in the project root.
+   Paper + ink: cream page, 3px ink outlines, hard offset shadows, the app's accents (pink for anything you act
+   on, cyan for LED/links).
+   Two kinds of surface: PAPER (everything you read and press) and SCREEN (anything live or measured -
+   video, note lane, score, charts, calendar, result). Screens stay dark in both themes. */
 :root {
-  --stage: #0b0e1a; --panel: #131a2e; --panel-2: #1a2340; --line: #232d4d;
-  --ink: #eef2ff; --ink-dim: #8b93b8; --ink-mute: #5b6488;
-  --cyan: #35d6f0; --pink: #ff4d8f; --gold: #ffc64b; --green: #5ef07a; --red: #ff5d5d; --miss: #4a5375;
-  --font-led: "DotGothic16", monospace;
+  color-scheme: light dark;
+  /* paper */
+  --stage: #fffdf3;            --stage: light-dark(#fffdf3, #16140f);   /* the page */
+  --panel: #ffffff;            --panel: light-dark(#ffffff, #221f18);   /* cards */
+  --panel-2: #faf5e4;          --panel-2: light-dark(#faf5e4, #2a251b); /* inset fields, chips */
+  --line: #15120c;             --line: light-dark(#15120c, #453f31);    /* outlines - muted warm line on dark, never cream */
+  --shadow: #15120c;           --shadow: light-dark(#15120c, #070605);  /* hard shadows */
+  /* dividers inside a card: derived from the outline on paper, but on dark the outline is too close to the panel
+     to read as a rule, so dark uses a low-alpha ink tint instead */
+  --line-soft: light-dark(color-mix(in srgb, #15120c 18%, transparent), color-mix(in srgb, #e8e2d2 14%, transparent));
+  --ink: #15120c;              --ink: light-dark(#15120c, #f4efe2);
+  --ink-dim: rgba(21,18,12,.72);  --ink-dim: light-dark(rgba(21,18,12,.72), rgba(244,239,226,.76));
+  --ink-mute: rgba(21,18,12,.5);  --ink-mute: light-dark(rgba(21,18,12,.5), rgba(244,239,226,.52));
+  /* accents as FILLS (buttons, badges, bars) - the same in both themes */
+  --cyan: #35d6f0; --accent: #ff4d8f; --green: #5ef07a; --red: #ff5d5d; --miss: #584e66;
+  /* accents as TEXT on paper - dark enough to read on cream, bright again on dark paper */
+  --cyan-t: #0b7f96;  --cyan-t: light-dark(#0b7f96, #35d6f0);
+  --accent-t: #bf1152;  --accent-t: light-dark(#bf1152, #ff7fb0);
+  --green-t: #1f8a3a; --green-t: light-dark(#1f8a3a, #5ef07a);
+  --red-t: #c62b2b;   --red-t: light-dark(#c62b2b, #ff5d5d);
+  /* a quieter accent fill, for a pink thing that must not compete with the primary. It cannot be mixed with the
+     card: on dark paper the card is warm brown, and pink mixed into brown is just brown. So it is its own pair. */
+  --accent-soft: #ffc9dd;   --accent-soft: light-dark(#ffc9dd, #b83070);
+  --accent-soft-h: #ffb0cb; --accent-soft-h: light-dark(#ffb0cb, #cf3a80);
+  /* a third paper step, deeper than --panel-2: chips and buttons that sit inside a panel */
+  --panel-3: #f0e9d4;          --panel-3: light-dark(#f0e9d4, #332c21);
+  /* stickers (the song menu on the landing page) */
+  --sticker-1: #ffd9e6; --sticker-1: light-dark(#ffd9e6, #6b2340);
+  --sticker-2: #c9f3ff; --sticker-2: light-dark(#c9f3ff, #1f5866);
+  --sticker-3: #e2d7ff; --sticker-3: light-dark(#e2d7ff, #453567);
+  --sticker-4: #d3f7dc; --sticker-4: light-dark(#d3f7dc, #245638);
+  --sticker-5: #ffffff; --sticker-5: light-dark(#ffffff, #3a352b);
+  --sticker-6: #ffe0c2; --sticker-6: light-dark(#ffe0c2, #6b4322);
+  /* the note lane is a <canvas>: play.js reads these, so an accent swap reaches the drawing too.
+     Plain rgba literals only - canvas parses these strings itself and does not resolve color-mix(). */
+  --lane-hit: rgba(191, 17, 82, .95); --lane-hit-soft: rgba(191, 17, 82, .4);
+  --lane-live: rgba(11, 127, 150, 1); --lane-wait: rgba(11, 127, 150, .4);
+  --lane-miss: rgba(21, 18, 12, .2); --lane-off: rgba(198, 43, 43, .9);
+  --lane-grid: rgba(21, 18, 12, .12); --lane-label: rgba(21, 18, 12, .45); --lane-cursor: rgba(21, 18, 12, .55);
+  --lane-high: #c62b2b; --lane-low: #7a4bd0;   /* the octave-flipped notes, outlined not filled */
+  /* type + shape */
+  /* the readout face: scores, codes, counters. A rounded display face, loaded at one weight so every
+     use is chunky without having to set a weight; kana fall through to the body face. */
+  --font-num: "Fredoka", "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
   --font-body: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  --r-pill: 999px; --r-field: 12px; --r-card: 16px; --r-panel: 18px; --r-big: 22px;
 }
+/* the profile menu pins a theme; without it the system decides */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* The note lane is drawn on a <canvas>, which cannot resolve light-dark(), so the dark values are spelled out
+   in both places a dark page can come from: the system setting, and the pinned theme. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lane-hit: rgba(255, 127, 176, .95); --lane-hit-soft: rgba(255, 127, 176, .4);
+    --lane-live: rgba(53, 214, 240, 1); --lane-wait: rgba(53, 214, 240, .4);
+    --lane-miss: rgba(244, 239, 226, .18); --lane-off: rgba(255, 93, 93, .9);
+    --lane-grid: rgba(244, 239, 226, .13); --lane-label: rgba(244, 239, 226, .45); --lane-cursor: rgba(244, 239, 226, .5);
+    --lane-high: #ff5d5d; --lane-low: #b06bff;
+  }
+}
+:root[data-theme="dark"] {
+  --lane-hit: rgba(255, 127, 176, .95); --lane-hit-soft: rgba(255, 127, 176, .4);
+  --lane-live: rgba(53, 214, 240, 1); --lane-wait: rgba(53, 214, 240, .4);
+  --lane-miss: rgba(244, 239, 226, .18); --lane-off: rgba(255, 93, 93, .9);
+  --lane-grid: rgba(244, 239, 226, .13); --lane-label: rgba(244, 239, 226, .45); --lane-cursor: rgba(244, 239, 226, .5);
+  --lane-high: #ff5d5d; --lane-low: #b06bff;
+}
+
+/* ふりがな off (profile menu, ?furigana=off): the readings are hidden, the text underneath is untouched */
+:root[data-ruby="off"] ruby rt { display: none; }
+
+/* Page to page: this is a multi-page app, and nothing in this app fades, so a navigation is a *wipe* - the new
+   page is pulled down over the old one, which holds still underneath, the way a console swaps a screen. The
+   header and the party strip are named, so they are lifted out of the wipe and never move at all.
+   mix-blend-mode must be reset: the UA cross-fade blends the two snapshots with plus-lighter, which would blow
+   two opaque pages out to white while they overlap. Chromium honours all of this today; every other browser
+   ignores the at-rule and navigates as before. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { mix-blend-mode: normal; }
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: page-wipe .28s cubic-bezier(.3, .9, .25, 1); }
+@keyframes page-wipe { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+::view-transition-old(appheader), ::view-transition-old(partystrip) { animation: none; opacity: 0; }
+::view-transition-new(appheader), ::view-transition-new(partystrip) { animation: none; opacity: 1; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+
+/* Containers that JS fills hold their height while empty, so the first frame (and the view-transition snapshot)
+   already has the page's shape and nothing jumps when the data lands. No shimmer: nothing in this app fades. */
+.tiles:empty { min-height: 108px; }
+.chart:empty { min-height: 220px; }
+.cal:empty { min-height: 102px; }
+.heat:empty { min-height: 22px; }
+table:empty { display: block; min-height: 160px; }
+.cards:empty, .songlist:empty { min-height: 50vh; }
+.tabs:empty, .songtabs:empty { min-height: 36px; }
+
 * { box-sizing: border-box; }
 /* a class that sets display must never beat the hidden attribute (panels toggled from JS) */
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--stage); color: var(--ink); font-family: var(--font-body); font-size: 14px;
-       display: flex; flex-direction: column; min-height: 100vh; }
-a { color: var(--cyan); text-decoration: none; }
+body { margin: 0; background: var(--stage); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+       display: flex; flex-direction: column; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+a { color: var(--cyan-t); text-decoration: none; font-weight: 700; }
 a:hover { text-decoration: underline; }
-h1, h2, h3 { margin: 0 0 10px; font-weight: 800; }
-h1 { font-size: 22px; } h2 { font-size: 17px; } h3 { font-size: 14px; color: var(--ink-dim); letter-spacing: 1px; }
+h1, h2, h3 { margin: 0 0 10px; font-weight: 800; letter-spacing: -.01em; }
+h1 { font-size: 25px; } h2 { font-size: 19px; } h3 { font-size: 14px; color: var(--ink-dim); letter-spacing: 1px; }
 .sub { display: none; }  /* English sub-labels become hover tooltips (see applySubTooltips in common.js) */
 small, .dim { color: var(--ink-dim); }
 .mute { color: var(--ink-mute); }
-.led { font-family: var(--font-led); font-variant-numeric: tabular-nums; }
-.gold { color: var(--gold); } .cyan { color: var(--cyan); } .pink { color: var(--pink); } .green { color: var(--green); } .red { color: var(--red); }
+.readout { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.accent { color: var(--accent-t); } .cyan { color: var(--cyan-t); } .green { color: var(--green-t); } .red { color: var(--red-t); }
+ruby { ruby-align: center; }                                   /* a wide reading overhangs instead of spacing the kanji apart */
+/* Furigana carries the app's whole point, so it is set to be read, not to be noticed: .5em was 7px on body text. */
+/* A reading is the same ink as the word it belongs to - on an accent button that is black, not the page's dim
+   ink - only lighter, so it still reads as a reading and not as a second line of text. */
+ruby rt { font-size: .66em; font-weight: 500; line-height: 1.1; color: inherit;
+          color: color-mix(in srgb, currentColor 76%, transparent); }
+/* Inside a control the label is heavy (700-800); a 500 reading above it read as someone else's text. */
+button rt, .btn rt, .pill rt, .chip rt, .tabs rt, label rt { font-weight: 700; }
+:focus-visible { outline: 3px solid var(--cyan-t); outline-offset: 2px; border-radius: 6px; }
+
+/* There is one surface: paper. `.screen` is kept as the name for a measured panel (lane, chart, score) -
+   same card, but its numbers are LED and its insides are drawn, not written. */
+.screen { background: var(--panel); color: var(--ink); border: 3px solid var(--line); border-radius: var(--r-card); }
 
 /* header / nav */
-header.top { display: flex; align-items: center; gap: 18px; padding: 10px 18px; border-bottom: 1px solid var(--line);
-             background: linear-gradient(180deg, #10162a, #0b0e1a); position: sticky; top: 0; z-index: 5; }
-.logo { font-family: var(--font-led); font-size: 20px; color: var(--cyan); letter-spacing: 2px;
-        text-shadow: 0 0 12px rgba(53, 214, 240, .5); white-space: nowrap; }
-.logo em { color: var(--pink); font-style: normal; }
-nav.main { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
-nav.main a { color: var(--ink-dim); padding: 6px 11px; border-radius: 999px; font-weight: 700; font-size: 13px; }
-nav.main a:hover { color: var(--ink); text-decoration: none; background: var(--panel-2); }
-nav.main a.active { color: var(--ink); background: var(--panel-2); }
-.userchip { display: flex; align-items: center; gap: 8px; color: var(--ink-dim); font-size: 13px; }
+/* --header-h is what the party strip sticks below. It is the tallest thing on the row (the avatar button:
+   32px avatar + 8px padding + 6px border = 46px) plus the header's own padding and its bottom rule. */
+:root { --header-h: 69px; }
+header.top { display: flex; align-items: center; gap: 18px; padding: 10px 18px; border-bottom: 3px solid var(--line);
+             background: var(--stage); position: sticky; top: 0; z-index: 5; view-transition-name: appheader; }
+.logo { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 20px; letter-spacing: .02em; color: var(--ink); white-space: nowrap; }
+.logo:hover { text-decoration: none; }
+.logo em { color: var(--accent-t); font-style: normal; }
+.logo img { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); background: var(--accent); }
+nav.main { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+/* Nav items press like every other button: at rest they are quiet, hover pops the outline and the hard shadow
+   out of the page, and clicking pushes the pill down into that shadow. */
+nav.main a { color: var(--ink-dim); padding: 6px 13px; border-radius: var(--r-pill); font-weight: 800; font-size: 13.5px;
+             border: 3px solid transparent; box-shadow: 0 0 0 var(--shadow); transition: transform .08s, box-shadow .08s, background-color .12s; }
+nav.main a:hover { color: var(--ink); text-decoration: none; border-color: var(--line); background: var(--panel);
+                   transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--shadow); }
+nav.main a:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--shadow); }
+nav.main a.active { color: var(--ink); background: var(--accent); border-color: var(--line); box-shadow: 2px 2px 0 var(--shadow); }
+nav.main a.active:hover { background: var(--accent); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--shadow); }
+:root[data-theme="dark"] nav.main a.active, nav.main a.active { color: #15120c; }
+.userchip { display: flex; align-items: center; gap: 8px; color: var(--ink-dim); font-size: 13.5px; font-weight: 700; }
 .userchip a { color: inherit; }
 header.top .burger { display: none; padding: 4px 9px; font-size: 18px; line-height: 1; }
+.themebtn { padding: 5px 9px; font-size: 15px; line-height: 1; box-shadow: none; }
+/* signed out there is no profile menu, so furigana is its own button: struck through while off */
+.rubybtn { font-weight: 800; font-size: 15px; }
+.rubybtn.off { color: var(--ink-mute); text-decoration: line-through; }
 
-/* party strip — app-level party mode: sits under the header on every page while a party is live */
-.partystrip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 16px;
-              background: linear-gradient(180deg, #241a33, #1a1428); border-bottom: 1px solid var(--line);
-              position: sticky; top: 53px; z-index: 4; }
-.partystrip .pl { font-weight: 800; font-size: 13px; color: var(--gold); white-space: nowrap; }
-.partystrip .pcode { font-family: var(--font-led); font-size: 18px; letter-spacing: 3px; color: var(--cyan); }
+/* profile menu - the avatar is the button; プロフィール, ふりがな, ダークモード and ログアウト drop out of it */
+.usermenu-wrap { position: relative; flex: none; }
+.userbtn { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; font-size: 13.5px; font-weight: 700;
+           color: var(--ink); box-shadow: 3px 3px 0 var(--shadow); max-width: 220px; }
+.userbtn .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.userbtn .cv { font-size: 10px; color: var(--ink-mute); transition: transform .18s; }
+.userbtn[aria-expanded="true"] { background: var(--accent); transform: translate(3px, 3px); box-shadow: 0 0 0 var(--shadow); }
+.userbtn[aria-expanded="true"] .cv { transform: rotate(180deg); color: var(--ink); }
+.usermenu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 256px; max-width: calc(100vw - 24px); z-index: 20;
+            background: var(--panel); border: 3px solid var(--line); border-radius: var(--r-panel); box-shadow: 6px 6px 0 var(--shadow);
+            padding: 8px; display: flex; flex-direction: column; gap: 2px;
+            /* it grows out of the corner of the button and collapses back into it - from nothing to the panel,
+               never a shrunken copy of itself sitting in mid-air. Closing uses a plain ease so the springy
+               curve cannot overshoot past zero and flip the panel inside out. */
+            transform-origin: top right; transform: scale(0); visibility: hidden; overflow: hidden;
+            transition: transform .16s ease-in, visibility .16s; }
+.usermenu.open { transform: scale(1); visibility: visible;
+                 transition: transform .24s cubic-bezier(.2, 1.6, .4, 1), visibility .24s; }
+/* the rows drop into place one after the other as it opens - they slide, they never fade */
+.usermenu > * { transform: translateY(-10px); transition: transform .2s cubic-bezier(.2, 1.4, .4, 1); }
+.usermenu.open > * { transform: none; }
+.usermenu.open > *:nth-child(1) { transition-delay: .04s; } .usermenu.open > *:nth-child(2) { transition-delay: .07s; }
+.usermenu.open > *:nth-child(3) { transition-delay: .1s; }  .usermenu.open > *:nth-child(4) { transition-delay: .13s; }
+.usermenu.open > *:nth-child(5) { transition-delay: .16s; } .usermenu.open > *:nth-child(6) { transition-delay: .19s; }
+.usermenu .mi { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border-radius: var(--r-field);
+                border: 3px solid transparent; background: none; box-shadow: none; font-size: 14px; font-weight: 800; color: var(--ink); cursor: pointer; }
+.usermenu a.mi:hover, .usermenu button.mi:hover { background: var(--panel-2); border-color: var(--line); text-decoration: none; transform: none; box-shadow: none; }
+.usermenu .mi:active { transform: translate(1px, 1px); }
+.usermenu .mi .ico { font-size: 15px; width: 18px; text-align: center; flex: none; }
+.usermenu .mi .sw { margin-left: auto; }
+.usermenu .mi.logout { color: var(--red-t); }
+.usermenu hr { border: none; border-top: 3px solid var(--line-soft); margin: 5px 4px; }
+.usermenu .head { padding: 6px 12px 4px; font-size: 12px; letter-spacing: 1.5px; font-weight: 800; color: var(--ink-mute); }
+/* switch: a chunky paper toggle, accent when on */
+.sw { width: 40px; height: 22px; border: 3px solid var(--line); border-radius: var(--r-pill); background: var(--panel-2);
+      position: relative; flex: none; transition: background-color .18s; }
+.sw::after { content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%;
+             background: var(--line); transition: transform .18s cubic-bezier(.2, 1.4, .4, 1); }
+[aria-checked="true"] .sw { background: var(--accent); }
+[aria-checked="true"] .sw::after { transform: translateX(18px); }
+
+/* party strip - app-level party mode: an inset band under the header on every page while a party is live.
+   It rolls down out of the header when a party starts and rolls back up when it ends: the outer element is a
+   one-row grid animating 0fr -> 1fr (so it needs no fixed height) and the inner row clips what is not out yet. */
+.partystrip { display: grid; grid-template-rows: 0fr; background: var(--panel-2); color: var(--ink);
+              border-bottom: 0 solid var(--line); position: sticky; top: var(--header-h); z-index: 4;
+              view-transition-name: partystrip;
+              transition: grid-template-rows .26s cubic-bezier(.2, .9, .25, 1), border-bottom-width .26s; }
+.partystrip.on { grid-template-rows: 1fr; border-bottom-width: 3px; }
+.partystrip .inner { overflow: hidden; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 16px; }
+.partystrip .pl { font-weight: 800; font-size: 13.5px; color: var(--accent-t); white-space: nowrap; }
+.partystrip .pcode { font-family: var(--font-num); font-size: 18px; letter-spacing: 3px; color: var(--cyan-t); }
 .partystrip .pmembers { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 240px; min-width: 0; }
-.pmember { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; border-radius: 999px;
-           border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 12px; font-weight: 700; }
+.partystrip button { color: var(--ink); background: var(--panel); border-color: var(--line); box-shadow: 2px 2px 0 var(--shadow); }
+.pmember { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; border-radius: var(--r-pill);
+           border: 2px solid var(--line); background: var(--panel); cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink); }
 .pmember .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--seat, var(--cyan)); flex: none;
-                box-shadow: 0 0 6px var(--seat, var(--cyan)); }
+                border: 2px solid var(--line); box-sizing: content-box; }
 .pmember .avatar { width: 22px; height: 22px; font-size: 10px; }
 .pmember .nm { max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pmember .q { background: var(--pink); color: #fff; border-radius: 999px; font-size: 10px; padding: 1px 6px; }
-.pmember .b { color: var(--gold); font-family: var(--font-led); font-size: 12px; }
-.pmember.current { border-color: var(--seat, var(--cyan)); color: var(--ink); background: color-mix(in srgb, var(--seat) 18%, var(--panel-2)); }
+.pmember .q { background: var(--accent); color: #15120c; border-radius: var(--r-pill); font-size: 10px; padding: 1px 6px; }
+.pmember .b { color: var(--accent-t); font-family: var(--font-num); font-size: 13px; }
+.pmember.current { background: color-mix(in srgb, var(--seat) 22%, var(--panel)); }
 .pmember.current::after { content: '🎤'; font-size: 11px; }
 dialog.qrdlg { text-align: center; }
-dialog.qrdlg .qr { width: 220px; height: 220px; margin: 0 auto 10px; background: var(--panel-2); border-radius: 12px; padding: 10px; }
+dialog.qrdlg .qr { width: 220px; height: 220px; margin: 0 auto 10px; background: #fff; border: 3px solid var(--line); border-radius: 14px; padding: 10px; }
 dialog.qrdlg .qr img { width: 100%; height: 100%; display: block; }
-dialog.qrdlg .pcode.big { font-family: var(--font-led); font-size: 34px; letter-spacing: 6px; color: var(--cyan); }
+dialog.qrdlg .pcode.big { font-family: var(--font-num); font-size: 34px; letter-spacing: 6px; color: var(--cyan-t); }
 @media (max-width: 640px) {
-  .partystrip { top: 45px; padding: 6px 10px; gap: 6px; }
+  .partystrip .inner { padding: 6px 10px; gap: 6px; }
   .partystrip .pmembers { order: 3; flex: 1 1 100%; }
+  /* passing the mic is a tap target, so it gets a finger-sized row */
+  .pmember { padding: 7px 12px 7px 8px; font-size: 13.5px; }
+  .pmember .nm { max-width: 12ch; }
 }
 
 /* avatar */
-.avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--panel-2); border: 1px solid var(--line);
-          display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: var(--cyan); flex: none;
+.avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--panel-2); border: 2px solid var(--line);
+          display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: var(--ink); flex: none;
           font-size: 13px; overflow: hidden; }
-.avatar.lg { width: 56px; height: 56px; font-size: 22px; }
-.avatar.xl { width: 112px; height: 112px; font-size: 40px; }
+.avatar.lg { width: 56px; height: 56px; font-size: 22px; border-width: 3px; }
+.avatar.xl { width: 112px; height: 112px; font-size: 40px; border-width: 3px; }
 
 /* layout */
 main.page { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; padding: 22px 18px 40px; }
-.grid { display: grid; gap: 14px; }
+.grid { display: grid; gap: 16px; }
 .cards { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.panel { background: var(--panel); border: 3px solid var(--line); border-radius: var(--r-panel); padding: 18px; box-shadow: 4px 4px 0 var(--shadow); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .spread { justify-content: space-between; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 
-/* controls */
-button, select, input, textarea { font-family: var(--font-body); font-size: 14px; color: var(--ink); }
-input[type=text], input[type=email], input[type=url], input[type=number], select, textarea {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; outline: none; }
-input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-weight: 700; }
-button:hover { border-color: var(--cyan); }
-button:disabled { opacity: .45; cursor: default; }
-button.primary { background: var(--pink); border-color: var(--pink); color: #fff; font-weight: 800; padding: 9px 22px; border-radius: 999px;
-                 font-size: 15px; box-shadow: 0 0 18px rgba(255, 77, 143, .35); }
-button.primary:disabled { background: var(--miss); border-color: var(--miss); box-shadow: none; }
-button.ghost { background: transparent; }
-button.small { padding: 4px 10px; font-size: 12px; }
-button.warn { border-color: var(--gold); color: var(--gold); }
-button.danger { border-color: var(--red); color: var(--red); }
-label.field { display: flex; flex-direction: column; gap: 5px; color: var(--ink-dim); font-size: 12px; }
-label.field input, label.field select { color: var(--ink); font-size: 14px; }
-.msg { padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; }
-.msg.err { border-color: var(--red); color: var(--red); }
-.msg.ok { border-color: var(--green); color: var(--green); }
-.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--panel-2); color: var(--ink-dim); }
-.pill.published { color: var(--green); } .pill.labeling { color: var(--gold); } .pill.processing { color: var(--cyan); } .pill.failed { color: var(--red); }
+/* controls - every button is a pill with an outline and a hard shadow; pressing it pushes it into the shadow */
+button, select, input, textarea { font-family: var(--font-body); font-size: 15px; color: var(--ink); }
+input[type=text], input[type=email], input[type=url], input[type=number], input[type=search], select, textarea {
+  background: var(--panel-2); border: 3px solid var(--line); border-radius: var(--r-field); padding: 8px 12px; outline: none; }
+input::placeholder { color: var(--ink-mute); }
+/* sliders (mic latency) are paper too: an inset track with a 3px-outlined knob */
+input[type=range] { -webkit-appearance: none; appearance: none; height: 22px; background: none; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 16px; border-radius: var(--r-pill); background: var(--panel-2); border: 3px solid var(--line); }
+input[type=range]::-moz-range-track { height: 16px; border-radius: var(--r-pill); background: var(--panel-2); border: 3px solid var(--line); }
+/* WebKit hangs the knob off the TOP of the track's content box, so the centering is this margin and nothing else:
+   the track is 16px border-box with 3px rules = 10px of content, the knob is 20px, so it lifts by (10-20)/2. */
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; margin-top: -5px;
+  border-radius: 50%; background: var(--accent); border: 3px solid var(--line); box-shadow: 2px 2px 0 var(--shadow); }
+input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid var(--line); }
+input[type=range]:active::-webkit-slider-thumb { box-shadow: 0 0 0 var(--shadow); transform: translate(2px, 2px); }
+button { background: var(--panel); border: 3px solid var(--line); border-radius: var(--r-pill); padding: 7px 16px; cursor: pointer; font-weight: 800;
+         box-shadow: 3px 3px 0 var(--shadow); transition: transform .08s, box-shadow .08s; }
+button:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--shadow); }
+button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--shadow); }
+button:disabled { opacity: .45; cursor: default; transform: none; box-shadow: 3px 3px 0 var(--shadow); }
+button.primary { background: var(--accent); border-color: var(--line); color: #15120c; padding: 9px 24px; font-size: 15px; box-shadow: 4px 4px 0 var(--shadow); }
+button.primary:hover { box-shadow: 2px 2px 0 var(--shadow); }
+button.primary:disabled { background: var(--miss); color: var(--ink); box-shadow: 4px 4px 0 var(--shadow); }
+/* the party button: pink like everything that acts, but a *quieter* pink than the active nav pill - it is an
+   offer, not where you are. Mixed with the card so it tints with the theme instead of needing a second token. */
+button.party { background: var(--accent-soft); border-color: var(--line); color: var(--ink); }
+button.party:hover { background: var(--accent-soft-h); }
+button.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--ink-dim); }
+button.ghost:hover { border-color: var(--line); color: var(--ink); transform: none; box-shadow: none; }
+button.small { padding: 5px 13px; font-size: 13px; box-shadow: 2px 2px 0 var(--shadow); }
+button.warn { color: var(--accent-t); border-color: var(--accent-t); }
+button.danger { color: var(--red-t); }
+button.danger:not(.ghost) { border-color: var(--red-t); }
+label.field { display: flex; flex-direction: column; gap: 5px; color: var(--ink-dim); font-size: 13px; font-weight: 700; }
+label.field input, label.field select { color: var(--ink); font-size: 15px; }
+.msg { padding: 11px 14px; border-radius: var(--r-field); background: var(--panel-2); border: 3px solid var(--line); font-size: 14px; font-weight: 700; }
+.msg.err { border-color: var(--red-t); color: var(--red-t); }
+.msg.ok { border-color: var(--green-t); color: var(--green-t); }
+.pill { display: inline-block; padding: 3px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 800; background: var(--panel-2); color: var(--ink-dim); border: 2px solid var(--line); }
+.pill.published { color: var(--green-t); } .pill.labeling { color: var(--accent-t); } .pill.processing { color: var(--cyan-t); } .pill.failed { color: var(--red-t); }
 
 /* tables */
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-th { color: var(--ink-dim); font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 2px solid var(--line-soft); vertical-align: middle; }
+th { color: var(--ink-dim); font-weight: 800; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-tr.me td { background: rgba(53, 214, 240, .07); }
+tr.me td { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .tablewrap { overflow-x: auto; }
 
-/* song card */
-.song { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column;
-        transition: border-color .15s, transform .15s; }
-.song:hover { border-color: var(--cyan); transform: translateY(-2px); }
-.song .thumb { aspect-ratio: 16/9; background: linear-gradient(135deg, #1a2340, #0b0e1a); position: relative; overflow: hidden; }
-.song .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.9); }
-.song .thumb .best { position: absolute; right: 10px; bottom: 8px; font-family: var(--font-led); font-size: 26px; color: var(--gold);
-                     text-shadow: 0 0 10px rgba(0, 0, 0, .9), 0 0 14px rgba(255, 198, 75, .4); }
+/* song card - a sticker on the wall: outline, hard shadow, the thumbnail as a screen */
+.song { background: var(--panel); border: 3px solid var(--line); border-radius: var(--r-card); overflow: hidden; display: flex; flex-direction: column;
+        color: var(--ink); box-shadow: 4px 4px 0 var(--shadow); transition: transform .15s; }
+.song:hover { text-decoration: none; transform: translateY(-3px); }
+/* In a catalogue grid the cards are coloured like the landing page's sticker menu - same six pastels, same order.
+   The colour follows the position in the grid, so a filtered list re-colours itself and never repeats a neighbour. */
+.cards .song:nth-child(6n+1) { background: var(--sticker-1); }
+.cards .song:nth-child(6n+2) { background: var(--sticker-2); }
+.cards .song:nth-child(6n+3) { background: var(--sticker-3); }
+.cards .song:nth-child(6n+4) { background: var(--sticker-4); }
+.cards .song:nth-child(6n+5) { background: var(--sticker-5); }
+.cards .song:nth-child(6n+6) { background: var(--sticker-6); }
+.song .thumb { aspect-ratio: 16/9; background: var(--panel-2); position: relative; overflow: hidden; border-bottom: 3px solid var(--line); }
+.song .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .song .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
-.song .title { font-size: 16px; font-weight: 800; line-height: 1.3; }
-.song .artist { color: var(--ink-dim); font-size: 13px; }
-.song .meta { display: flex; justify-content: space-between; align-items: center; color: var(--ink-dim); font-size: 12px; margin-top: auto; }
+.song .title { font-size: 16px; font-weight: 800; line-height: 1.3; padding-top: 2px; }
+.song .artist { color: var(--ink-dim); font-size: 13.5px; font-weight: 700; }
+.song .meta { display: flex; justify-content: space-between; align-items: center; color: var(--ink-dim); font-size: 13px; margin-top: auto; font-weight: 700; }
 .song .top { display: flex; align-items: center; gap: 6px; }
 .song .top .avatar { width: 22px; height: 22px; font-size: 10px; }
+.song .top .readout { color: var(--accent-t); }
 
 /* stat tiles */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-.tile .label { color: var(--ink-dim); font-size: 11px; letter-spacing: 2px; }
-.tile .value { font-family: var(--font-led); font-size: 30px; color: var(--gold); line-height: 1.2; margin-top: 4px; }
-.tile .value.cyan { color: var(--cyan); }
-.tile .note { color: var(--ink-dim); font-size: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.tile { background: var(--panel); border: 3px solid var(--line); border-radius: var(--r-card); padding: 14px 16px; box-shadow: 3px 3px 0 var(--shadow); }
+.tile .label { color: var(--ink-dim); font-size: 12px; letter-spacing: 1.5px; font-weight: 800; }
+.tile .value { font-family: var(--font-num); font-size: 30px; color: var(--accent-t); line-height: 1.2; margin-top: 4px; }
+.tile .value.cyan { color: var(--cyan-t); }
+.tile .note { color: var(--ink-dim); font-size: 13px; font-weight: 700; }
 
-/* charts (plain SVG) */
-.chart { width: 100%; overflow: hidden; }
+/* charts (plain SVG) live on a screen */
+/* A chart is drawn at one SVG unit per CSS pixel so its type stays legible; one that needs more room than the
+   panel has (the by-note chart on a phone) scrolls sideways rather than shrinking its labels away. */
+.chart { width: 100%; overflow-x: auto; overflow-y: hidden; background: var(--panel-2); border: 3px solid var(--line);
+         border-radius: var(--r-card); padding: 8px 6px 4px; overscroll-behavior-x: contain; }
 .chart svg { width: 100%; height: auto; display: block; font-family: var(--font-body); }
-.chart .grid line { stroke: rgba(139, 147, 184, .16); }
-.chart .axis text { fill: var(--ink-dim); font-size: 11px; }
-.chart .series { stroke: var(--cyan); stroke-width: 2; fill: none; }
-.chart .dot { fill: var(--stage); stroke: var(--cyan); stroke-width: 2; }
-.chart .dot.pb { stroke: var(--gold); }
-.chart .bar { fill: var(--cyan); }
-.chart .crosshair { stroke: rgba(238, 242, 255, .35); stroke-dasharray: 3 3; }
-.tooltip { position: fixed; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
-           font-size: 12px; color: var(--ink); z-index: 20; white-space: nowrap; box-shadow: 0 6px 20px rgba(0, 0, 0, .5); }
-.tooltip b { color: var(--gold); font-family: var(--font-led); font-size: 14px; }
+.chart .grid line { stroke: var(--line-soft); }
+.chart .axis text { fill: var(--ink-dim); font-size: 12px; }
+.chart .series { stroke: var(--cyan-t); stroke-width: 3; fill: none; }
+.chart .dot { fill: var(--panel); stroke: var(--cyan-t); stroke-width: 3; }
+.chart .dot.pb { stroke: var(--accent-t); }
+.chart .bar { fill: var(--cyan-t); }
+.chart .crosshair { stroke: var(--ink-mute); stroke-dasharray: 3 3; }
+.tooltip { position: fixed; pointer-events: none; background: var(--panel); border: 3px solid var(--line); border-radius: 10px; padding: 6px 10px;
+           font-size: 13px; color: var(--ink); z-index: 20; white-space: nowrap; box-shadow: 3px 3px 0 var(--shadow); }
+.tooltip b { color: var(--accent-t); font-family: var(--font-num); font-size: 14px; }
 .cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px; }
-.cal i { width: 12px; height: 12px; border-radius: 3px; background: var(--panel-2); display: block; }
-.cal i.l1 { background: #145c6a; } .cal i.l2 { background: #1f93aa; } .cal i.l3 { background: #35d6f0; } .cal i.today { outline: 1px solid var(--ink-dim); }
+.cal i { width: 12px; height: 12px; border-radius: 3px; background: var(--panel-3); display: block; }
+.cal i.l1 { background: #bfe9f3; } .cal i.l2 { background: #6fd3e8; } .cal i.l3 { background: var(--cyan); }
+:root[data-theme="dark"] .cal i.l1, :root:not([data-theme="light"]) .cal i.l1 { }
+.cal i.today { outline: 2px solid var(--accent); }
 .heat { display: flex; gap: 2px; height: 22px; }
-.heat i { flex: 1; border-radius: 3px; background: var(--panel-2); min-width: 4px; }
+.heat i { flex: 1; border-radius: 3px; background: var(--panel-3); min-width: 4px; }
 
-dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; padding: 28px 36px; }
-dialog::backdrop { background: rgba(5, 7, 14, .8); }
-footer.foot { color: var(--ink-mute); font-size: 11px; text-align: center; padding: 14px; }
+dialog { background: var(--panel); color: var(--ink); border: 3px solid var(--line); border-radius: var(--r-big); padding: 28px 36px; box-shadow: 8px 8px 0 var(--shadow); }
+dialog::backdrop { background: rgba(21, 18, 12, .55); }
+/* a dialog pops out of nothing, like every other panel in the app - it does not fade in */
+dialog[open] { animation: dlg-pop .2s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes dlg-pop { from { transform: scale(.6); } to { transform: scale(1); } }
+/* confirm(): the browser's is a different app on the screen, so the app draws its own */
+dialog.confirm { max-width: min(400px, calc(100vw - 32px)); padding: 24px 26px; }
+dialog.confirm h2 { margin-bottom: 6px; }
+dialog.confirm p { margin: 0; }
+dialog.confirm .btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; }
+footer.foot { color: var(--ink-mute); font-size: 13px; font-weight: 700; text-align: center; padding: 16px; border-top: 3px solid var(--line); }
 @media (max-width: 640px) {
-  /* Phones: one row — logo, spacer, profile, ☰. The nav is a dropdown panel under the header while ☰ is open. */
+  /* Phones: one row - ☰, logo, profile. The nav is a dropdown panel under the header while ☰ is open. */
+  :root { --header-h: 65px; }                    /* 46px avatar button + 2×8px padding + the 3px rule */
   header.top { gap: 10px; padding: 8px 12px; }
-  /* ☰ left, logo centred, avatar right: ☰ and the chip get the same fixed width so the logo sits at true centre */
   header.top .burger { display: inline-flex; order: -1; width: 38px; justify-content: center; }
-  header.top .logo { flex: 1; font-size: 18px; text-align: center; }
-  header.top .userchip { min-width: 38px; flex: none; justify-content: center; }   /* the ログイン link may be wider */
-  header.top .userchip span { display: none; }   /* avatar only; the name is on the profile page */
-  nav.main { display: none; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; gap: 2px; padding: 8px 10px 10px;
-             background: linear-gradient(180deg, #0b0e1a, #10162a); border-bottom: 1px solid var(--line); box-shadow: 0 14px 30px rgba(0, 0, 0, .5); }
-  header.top.nav-open nav.main { display: flex; }
-  nav.main a { padding: 10px 12px; font-size: 14px; border-radius: 10px; }
+  header.top .logo { flex: 1; font-size: 18px; justify-content: center; }
+  header.top .logo img { width: 24px; height: 24px; }
+  header.top .userchip { min-width: 38px; flex: none; justify-content: center; }
+  /* the avatar alone opens the menu; the name and caret would not fit (and a letter avatar IS a span, so this
+     may never be a blanket `.userchip span` rule) */
+  header.top .userbtn { padding: 4px; gap: 0; } header.top .userbtn .nm, header.top .userbtn .cv { display: none; }
+  .usermenu { min-width: 230px; }
+  header.top .themebtn { display: none; }        /* lives in the dropdown instead */
+  /* the ☰ panel rolls down out of the header and rolls back up into it - it never just appears. Closed it is a
+     zero-height clip with no rule and no shadow, so nothing of it shows; `visibility` keeps its links unfocusable. */
+  nav.main { display: flex; position: absolute; left: 0; right: 0; top: 100%; flex-direction: column; gap: 4px;
+             overflow: hidden; max-height: 0; padding: 0 12px; background: var(--stage);
+             border-bottom: 0 solid var(--line); box-shadow: 0 0 0 var(--shadow); visibility: hidden;
+             transition: max-height .24s cubic-bezier(.2, .9, .25, 1), padding .24s, border-bottom-width .24s,
+                         box-shadow .24s, visibility .24s; }
+  header.top.nav-open nav.main { max-height: 420px; padding: 10px 12px 12px; border-bottom-width: 3px;
+                                 box-shadow: 0 10px 0 var(--shadow); visibility: visible; }
+  nav.main a { padding: 10px 14px; font-size: 14px; }
+  nav.main .themebtn { display: inline-flex; align-self: flex-start; margin-top: 4px; }
   main.page { padding: 14px 12px 30px; }
+  /* A focused field under 16px makes iOS zoom the whole page and never zoom back out. */
+  input[type=text], input[type=email], input[type=url], input[type=number], input[type=search], select, textarea { font-size: 16px; }
+  /* finger-sized tap targets: .small is a mouse size */
+  button.small { padding: 9px 16px; font-size: 13.5px; }
+  .usermenu .mi { padding: 11px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .song, nav.main, nav.main a, .usermenu, .usermenu > *, .sw, .sw::after, .userbtn .cv, .partystrip { transition: none; }
+  dialog[open] { animation: none; }
 }

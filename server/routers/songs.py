@@ -5,12 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 import paths
-from ..auth import current_user, require_user
+from ..auth import current_user
 from ..db import get_db, one, rows
 
 router = APIRouter()
 
-SONG_COLS = "id, title_jp, artist_jp, title_en, artist_en, duration, n_notes, n_pages, family, status, published_at"
+SONG_COLS = "id, title_jp, artist_jp, title_ruby, artist_ruby, title_en, artist_en, duration, n_notes, n_pages, family, status, published_at"
 
 
 def _song(db, sid):
@@ -63,8 +63,10 @@ def song_detail(sid: str, db=Depends(get_db), user=Depends(current_user)):
     return s
 
 
+# The map and the video are open to anyone who can see the song: guests (「ゲストとして続ける」) play without an
+# account, and _visible() still keeps unpublished songs to admins.
 @router.get("/api/songs/{sid}/map")
-def song_map(sid: str, db=Depends(get_db), user=Depends(require_user)):
+def song_map(sid: str, db=Depends(get_db), user=Depends(current_user)):
     s = _song(db, sid)
     if not _visible(s, user):
         raise HTTPException(404)
@@ -75,7 +77,7 @@ def song_map(sid: str, db=Depends(get_db), user=Depends(require_user)):
 
 
 @router.get("/media/{sid}")
-def media(sid: str, db=Depends(get_db), user=Depends(require_user)):
+def media(sid: str, db=Depends(get_db), user=Depends(current_user)):
     s = _song(db, sid)
     if not _visible(s, user):
         raise HTTPException(404)

@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カラオケ.ロデオ - おうちで採点カラオケ</title>
+<meta name="description" content="カラオケ@DIVA の練習動画で、家でひとり採点カラオケ。マイクの音程を音符バーと比べて点数が出ます。記録、ランキング、スマホで参加するパーティー。">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- display=optional: a face is used only if it is ready at first paint - from cache it always is - so text never reflows
+     mid-transition (Google serves M PLUS as ~100 unicode-range subsets; with =swap each arrived a few ms apart and
+     each one re-laid the page out). The one-off cost is a fallback face for a glyph range seen for the first time. -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=M+PLUS+Rounded+1c:wght@400;700;800&display=optional" rel="stylesheet">
+<link rel="icon" href="/static/favicon.png" type="image/png">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fffdf3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16140f">
+<link rel="stylesheet" href="/static/common.css">
+<!-- settings applied before paint: theme (?theme= for one load) and furigana (?furigana= sticks) -->
+<script>try{var d=document.documentElement,s=location.search,L=localStorage,m=s.match(/[?&]theme=(light|dark)/),t=m?m[1]:L.getItem("karaoke_theme");if(t)d.dataset.theme=t;if(m=s.match(/[?&]furigana=(on|off)/))L.setItem("karaoke_furigana",m[1]);if(L.getItem("karaoke_furigana")=="off")d.dataset.ruby="off"}catch(e){}</script>
+<!-- the first API answers are requested here, before any module has loaded; api() in common.js takes them over -->
+<script>window.__pf={};["/api/me","/api/songs","/api/leaderboard"].forEach(function(u){var p=fetch(u);p.catch(function(){});window.__pf[u]=p})</script>
+<!-- Chromium: load the next page in the background while the pointer is on its link, so the swap is instant -->
+<script type="speculationrules">{"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/play*","/p/*","/login*","/api/*","/label*","/media/*","/avatars/*"]}}]},"eagerness":"moderate"}]}</script>
+<style>
+/* The front door: the app is a dark stage, so this page is its lit lobby - cream paper, ink outlines,
+   hard shadows, and the app's own accents (pink for anything you act on, cyan LED) doing the colour work. */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-size:15px;line-height:1.75}
+a{color:inherit;font-weight:inherit}
+button{font:inherit;color:inherit;cursor:pointer;box-shadow:none;border:0;background:none;border-radius:0}
+button:hover,button:active{transform:none;box-shadow:none}
+:focus-visible{outline:3px solid var(--cyan-t);outline-offset:3px;border-radius:6px}
+[hidden]{display:none!important}
+.sub{display:none}
+.readout{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.wrap{max-width:1140px;margin:0 auto;padding-inline:clamp(16px,4vw,36px)}
+h1,h2,h3{margin:0;font-weight:800;line-height:1.15;letter-spacing:-.02em;color:inherit}
+h2{font-size:clamp(26px,3vw,32px);margin:0 0 18px}
+h2 small{display:block;font-size:14px;font-weight:700;color:var(--ink-mute);letter-spacing:0;margin-top:6px}
+p{margin:0}
+.mut{color:var(--ink-dim)}
+
+/* outline system: 3px ink, hard shadow */
+.box{border:3px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:4px 4px 0 var(--shadow)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border:3px solid var(--line);border-radius:999px;background:var(--panel);font-weight:800;font-size:14px;line-height:1.2;text-decoration:none;box-shadow:3px 3px 0 var(--shadow);transition:transform .1s,box-shadow .1s}
+.btn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 var(--shadow)}
+.btn.accent{background:var(--accent);color:#15120c}
+.btn.big{font-size:18px;padding:15px 30px;box-shadow:5px 5px 0 var(--shadow)}
+.btn.big:hover{box-shadow:3px 3px 0 var(--shadow);transform:translate(2px,2px)}
+
+/* header */
+.lobby{border-bottom:3px solid var(--line);position:sticky;top:0;background:var(--stage);z-index:5}
+.lobby .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;padding-block:12px}
+.lobby .logo{font-size:22px;text-decoration:none;gap:10px}
+.lobby .logo em{color:var(--accent-t);font-style:normal}
+.lobby .logo img{width:30px;height:30px}
+.nav{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;font-weight:700;font-size:14px}
+.nav .themebtn{border:3px solid var(--line);border-radius:999px;padding:6px 9px;background:var(--panel)}
+.nav a{text-decoration:none}
+.nav a:not(.btn):hover{color:var(--accent-t)}   /* the login pill is a button: its ink stays black */
+.tools{display:flex;align-items:center;gap:10px 14px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,520px);gap:clamp(24px,4vw,56px);align-items:center;padding-block:clamp(28px,5vw,64px) clamp(28px,4vw,48px)}
+.hero h1{font-size:clamp(40px,5.4vw,66px);line-height:1.04;letter-spacing:-.03em}
+.hero h1 .en{display:block;font-size:.5em;margin-top:.45em;color:var(--accent-t);letter-spacing:-.01em;font-weight:800}
+/* the hat, worn by the first line: crown behind the text, front brim over it (two registered layers) */
+.lasso{position:relative;display:inline-block;padding:.5em .1em 0 .1em}
+.lasso img{position:absolute;left:-.54em;top:-.24em;width:1.92em;height:auto;pointer-events:none;transform:rotate(-17deg)}
+.lasso .back{z-index:0}
+.lasso .front{z-index:2}
+.lasso .txt{position:relative;z-index:1}
+.lasso ruby rt{color:inherit}
+.cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hero .cta{margin-top:clamp(22px,3.5vw,34px)}   /* the headline and the one button; the words live on /about */
+
+/* stickers: the catalogue, pinned at angles */
+.stickers{display:grid;grid-template-columns:1fr 1fr;gap:22px 18px;padding:12px 8px}
+.sticker{border:3px solid var(--line);border-radius:14px;padding:10px 10px 11px;box-shadow:4px 4px 0 var(--shadow);text-align:left;color:var(--ink);transition:transform .15s,box-shadow .15s;position:relative;display:flex;flex-direction:column;gap:7px;min-width:0}
+.sticker:nth-child(6n+1){background:var(--sticker-1);transform:rotate(-4deg) translate(-3px,3px)}
+.sticker:nth-child(6n+2){background:var(--sticker-2);transform:rotate(2.6deg) translate(2px,-4px)}
+.sticker:nth-child(6n+3){background:var(--sticker-3);transform:rotate(1.2deg) translate(-2px,5px)}
+.sticker:nth-child(6n+4){background:var(--sticker-4);transform:rotate(-2.2deg) translate(4px,-2px)}
+.sticker:nth-child(6n+5){background:var(--sticker-5);transform:rotate(3.4deg) translate(-4px,-3px)}
+.sticker:nth-child(6n+6){background:var(--sticker-6);transform:rotate(-1.4deg) translate(3px,4px)}
+/* it comes towards you, so the shadow grows - button:hover would otherwise drop it flat */
+.sticker:hover,.sticker:focus-visible{transform:rotate(0) translateY(-5px);box-shadow:7px 8px 0 var(--shadow)}
+.sticker:active{transform:rotate(0) translateY(-1px);box-shadow:3px 3px 0 var(--shadow)}
+.sticker .thumb{aspect-ratio:16/9;border:3px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden;position:relative}
+.sticker .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.sticker .thumb .best{position:absolute;right:7px;bottom:5px;font-family:var(--font-num);font-size:20px;color:#fff;text-shadow:2px 2px 0 rgba(21,18,12,.85)}
+.sticker .t{font-weight:800;font-size:17px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:3px}
+.sticker ruby rt{color:inherit;opacity:.75;font-weight:700}
+.sticker .a{font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-top:-4px}
+.sticker .m{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--ink-dim)}
+.sticker .m .readout{font-size:15px;color:var(--ink)}
+.sticker .m .who{display:inline-flex;align-items:center;gap:5px;max-width:60%;overflow:hidden}
+.sticker .m .who .av{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);object-fit:cover;flex:none;background:var(--panel);display:inline-grid;place-items:center;font-size:9px;font-weight:800}
+.stickers-foot{font-size:13px;font-weight:700;color:var(--ink-mute);text-align:right;padding-right:10px}
+.stickers-foot a{text-decoration:none;color:var(--ink)}
+
+/* the ticker */
+.ticker{border-block:3px solid var(--line);background:var(--panel-2);color:var(--accent-t);overflow:hidden;padding:9px 0;font-family:var(--font-num);font-size:15px;letter-spacing:.06em}
+.ticker div{display:flex;gap:40px;width:max-content;white-space:nowrap;animation:scroll 32s linear infinite}
+.ticker span::before{content:"♪";margin-right:10px;color:var(--cyan-t)}
+@keyframes scroll{to{transform:translateX(-50%)}}
+
+section{padding-block:clamp(40px,6vw,72px) clamp(30px,4vw,48px)}
+/* one rule between sections - the first already has the ticker's border above it, so it stays bare */
+main section+section{border-top:3px solid var(--line)}
+
+/* play preview - a drawing of the actual stage, in the same paper as the real one */
+.play{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:clamp(20px,3vw,40px);align-items:center}
+.stage{background:var(--panel);color:var(--ink);border:3px solid var(--line);border-radius:18px;box-shadow:6px 6px 0 var(--shadow);overflow:hidden;font-size:12px}
+.stage .bar{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:2px solid var(--line-soft);color:var(--ink-dim)}
+.stage .bar b{color:var(--ink);font-size:14px}
+.stage .bar .sp{flex:1}
+.stage .body{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:10px;padding:10px 12px 0}
+.video{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:16/9;min-height:0}
+.video img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.9)}
+.stamp{position:absolute;right:5%;top:8%;font-family:var(--font-num);font-size:clamp(22px,3vw,34px);color:#fff;transform:rotate(-8deg);text-shadow:3px 3px 0 rgba(21,18,12,.9);animation:slam 3.6s ease-out infinite}
+@keyframes slam{0%{transform:rotate(-8deg) scale(2)}8%,55%{transform:rotate(-8deg) scale(1)}70%,100%{transform:rotate(-8deg) scale(0)}}
+.aside{background:var(--panel-2);border:2px solid var(--line-soft);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.aside .lbl{color:var(--ink-dim);letter-spacing:3px;font-size:10px}
+.aside .score{font-family:var(--font-num);font-size:30px;line-height:1;color:var(--accent-t)}
+.aside .score small{font-size:16px}
+.aside .row{display:flex;justify-content:space-between;color:var(--ink-dim);font-size:11px}
+.aside .row b{font-family:var(--font-num);color:var(--ink);font-size:13px}
+.aside .combo{font-family:var(--font-num);color:var(--cyan-t);font-size:15px;margin-top:2px}
+.lane{margin:10px 12px 12px;background:var(--panel-2);border:2px solid var(--line-soft);border-radius:10px;overflow:hidden}
+.lane svg{display:block;width:100%;height:auto}
+/* the drawn lane uses the very tokens the real canvas reads (--lane-*), so both move together - including
+   under the pink accent variant. Sung notes are the accent, notes still coming are cyan. */
+.lane .done{fill:var(--lane-hit)}
+.lane .soft{fill:var(--lane-hit-soft)}
+.lane .live{fill:var(--lane-live)}
+.lane .wait{fill:var(--lane-wait)}
+.lane .trace{fill:none;stroke:var(--lane-hit);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.lane .cursor{stroke:var(--lane-cursor);stroke-width:2}
+.lane .grid{stroke:var(--lane-grid);stroke-width:2}
+.lane .octave{fill:var(--lane-label);font-family:var(--font-num);font-size:11px}
+.steps{display:grid;gap:14px}
+.step{display:grid;grid-template-columns:38px 1fr;gap:14px;align-items:start}
+.step .n{width:38px;height:38px;border:3px solid var(--line);border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:16px;background:var(--accent);color:#15120c}
+.step:nth-child(2) .n{background:var(--cyan);color:#15120c}
+.step:nth-child(3) .n{background:var(--panel);color:var(--cyan-t)}
+.step h3{font-size:18px;margin-bottom:4px}
+.step p{font-size:14.5px;color:var(--ink-dim)}
+.result{margin-top:6px;display:inline-flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--panel-2);color:var(--ink);border:3px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:3px 3px 0 var(--shadow)}
+.result .readout{font-size:30px;color:var(--accent-t);line-height:1}
+.result .g{color:var(--ink);font-weight:800;font-size:15px}
+.result .pb{color:var(--accent-t);font-weight:800;font-size:12px}
+.result .r{color:var(--ink-dim);font-size:12px}
+
+/* records */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+.card{padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px}
+.card h3{font-size:17px}
+.card p{font-size:14px;color:var(--ink-dim)}
+.mock{background:var(--panel-2);color:var(--ink);border:3px solid var(--line);border-radius:12px;padding:12px;font-size:12px;margin-top:auto}
+.cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px;justify-content:start}
+.cal i{width:11px;height:11px;border-radius:3px;background:var(--panel-3);display:block}
+.cal i.l1{background:#bfe9f3}.cal i.l2{background:#6fd3e8}.cal i.l3{background:var(--cyan)}
+.mock .streak{margin-top:8px;color:var(--ink-dim)}
+.mock .streak b{font-family:var(--font-num);color:var(--accent-t);font-size:16px}
+.trend{display:flex;flex-direction:column;gap:5px}
+.trend div{display:flex;justify-content:space-between;color:var(--ink-dim)}
+.trend b{font-family:var(--font-num);color:var(--ink);font-size:14px}
+.trend b.pb{color:var(--accent-t)}
+.weak div{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;color:var(--ink-dim);margin-bottom:5px}
+.weak i{height:8px;border-radius:4px;background:var(--panel-3);overflow:hidden;display:block}
+.weak i::after{content:"";display:block;height:100%;width:var(--w);background:var(--cyan-t)}
+.weak b{font-family:var(--font-num);color:var(--ink);font-size:13px}
+.notes div{display:flex;justify-content:space-between;color:var(--ink-dim);margin-bottom:4px}
+.notes b{font-family:var(--font-num);font-size:13px}
+.notes .flat{color:var(--cyan-t)}.notes .sharp{color:var(--red-t)}.notes .ok{color:var(--green-t)}
+
+/* ranking */
+/* the ranking board */
+.rkboard{padding:6px clamp(16px,2.4vw,26px) 12px}
+.rkboard table{width:100%;border-collapse:collapse;font-size:14px}
+.rkboard th{text-align:left;font-size:11.5px;color:var(--ink-mute);font-weight:800;padding:9px 0;letter-spacing:.04em}
+.rkboard td{padding:9px 0;border-top:2px solid color-mix(in srgb,var(--line) 18%,transparent)}
+.rkboard .rk{width:2.2em;font-family:var(--font-num);color:var(--ink-dim)}
+.rkboard .who{display:flex;align-items:center;gap:9px;font-weight:700}
+.rkboard .who .av{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);object-fit:cover;flex:none;
+  display:inline-grid;place-items:center;font-weight:800;font-size:11px;background:var(--panel)}
+.rkboard .num{text-align:right;font-family:var(--font-num)}
+.rkboard .sc{color:var(--accent-t);font-size:17px}
+.rkboard .mute{color:var(--ink-mute);font-weight:700;padding:14px 0}
+
+/* party: a small working model of the host's screen */
+.demo{display:block}
+.screen{border:3px solid var(--line);border-radius:18px;background:var(--stage);box-shadow:5px 5px 0 var(--shadow);overflow:hidden}
+.tophat{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:3px solid var(--line);background:var(--panel)}
+.dlogo{font-family:var(--font-disp);font-size:15px;font-weight:800}
+.dlogo em{color:var(--accent-t);font-style:normal}
+.pbtn{border:3px solid var(--line);border-radius:999px;padding:6px 14px;background:var(--accent);color:#15120c;font-weight:800;font-size:13px;box-shadow:3px 3px 0 var(--shadow);transition:transform .1s,box-shadow .1s}
+.pbtn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 var(--shadow)}
+.pbtn.on{background:var(--panel-3);color:var(--ink-mute);box-shadow:none;transform:none;cursor:default}
+/* rolls down exactly like the real bar: a grid row from 0fr to 1fr */
+.pbar{display:grid;grid-template-rows:0fr;overflow:hidden;background:var(--panel-2);border-bottom:0 solid var(--line);transition:grid-template-rows .26s cubic-bezier(.2,.9,.25,1),border-bottom-width .26s}
+.pbar.on{grid-template-rows:1fr;border-bottom-width:3px}
+.pbar .binner{overflow:hidden;min-height:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 12px;font-size:12px;transition:padding-block .26s}
+.pbar.on .binner{padding-block:8px}
+.pbar .pl{font-weight:800;color:var(--accent-t);white-space:nowrap}
+.pcode{font-family:var(--font-num);letter-spacing:3px;color:var(--cyan-t);font-size:16px}
+.pcode.big{font-size:26px}
+.pmembers{display:flex;gap:6px;flex-wrap:wrap;flex:1 1 200px;min-width:0}
+.seat{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 7px;border-radius:999px;border:2px solid var(--line);background:var(--panel);font-weight:700;font-size:12px;color:var(--ink);cursor:pointer}
+.seat i{width:9px;height:9px;border-radius:50%;background:var(--c);border:2px solid var(--line);box-sizing:content-box;flex:none}
+.seat.cur{background:color-mix(in srgb,var(--c) 22%,var(--panel))}
+.seat.cur::after{content:"🎤";font-size:11px}
+.seat .q{background:var(--accent);color:#15120c;border-radius:999px;font-size:10px;padding:0 6px;font-weight:800}
+.seat b{font-family:var(--font-num);color:var(--accent-t)}
+.seat.pop{animation:seatpop .34s cubic-bezier(.2,1.5,.4,1)}
+@keyframes seatpop{from{transform:scale(.4) translateY(6px);opacity:0}to{transform:none;opacity:1}}
+.gh{border:2px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel-3);font-weight:800;font-size:12px;box-shadow:2px 2px 0 var(--shadow);color:var(--ink)}
+.gh:hover{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--shadow)}
+.sbody{position:relative;padding:12px;min-height:150px}
+/* the catalogue behind the bar: the same cards as うたう, squared up the way they really sit */
+.ghosts{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px}
+.ghosts i{display:flex;flex-direction:column;border:3px solid var(--line);border-radius:12px;overflow:hidden;
+  box-shadow:4px 4px 0 var(--shadow);color:var(--ink)}
+.ghosts i b{display:block;aspect-ratio:16/9;background:var(--panel-2);border-bottom:3px solid var(--line);overflow:hidden}
+.ghosts i b img{width:100%;height:100%;object-fit:cover;display:block}
+.ghosts i em{font-style:normal;font-weight:800;font-size:13px;padding:8px 10px 9px;white-space:nowrap}
+.ghosts i:nth-child(1){background:var(--sticker-1)}
+.ghosts i:nth-child(2){background:var(--sticker-2)}
+.ghosts i:nth-child(3){background:var(--sticker-3)}
+.ghosts i:nth-child(4){background:var(--sticker-4)}
+.qrpop{position:absolute;inset:8px;display:flex;gap:14px;align-items:center;justify-content:center;background:var(--panel);border:3px solid var(--line);border-radius:14px;box-shadow:4px 4px 0 var(--shadow);padding:12px;animation:seatpop .2s ease}
+.qrpop svg{width:104px;height:104px;flex:none;background:#fff;border:3px solid var(--line);border-radius:8px;padding:4px}
+.qrpop rect{fill:#15120c}
+.qrpop p{margin:6px 0 8px;max-width:24ch;line-height:1.5}
+.cap{color:var(--ink-dim);font-size:11px}
+.caption{margin-top:14px;font-weight:800;color:var(--ink);min-height:2.6em;display:flex;align-items:center;gap:9px;
+  transition:opacity .15s ease,transform .15s ease}
+.caption.out{opacity:0;transform:translateY(-5px)}
+.caption::before{content:"▶";color:var(--accent-t);font-size:12px}
+.pnotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:8px;font-size:13.5px;color:var(--ink-dim)}
+.pnotes div{border-top:3px solid var(--line-soft);padding-top:9px}
+.pnotes b{color:var(--ink)}
+
+/* about */
+.about{padding:clamp(20px,3vw,30px);display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:26px;box-shadow:6px 6px 0 var(--shadow);border-radius:22px}
+.about p{font-size:15px;color:var(--ink-dim);max-width:46ch}
+.about .cta{margin-top:18px}
+.about .mission{display:grid;gap:12px;font-size:15px;color:var(--ink-dim);max-width:46ch}
+.about .mission b{color:var(--ink)}
+/* the maker, cut out and pinned on a pink card with a sunburst behind him - the mission is his, so he stands beside it */
+.me{position:relative;text-decoration:none;color:var(--ink);margin:0;align-self:center;justify-self:center;width:100%;max-width:340px;aspect-ratio:4/5;
+  border:3px solid var(--line);border-radius:22px;box-shadow:6px 6px 0 var(--shadow);overflow:hidden;
+  transform:rotate(1.6deg);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease;
+  background:
+    radial-gradient(circle at 50% 64%, rgba(255,255,255,.26) 0 36%, transparent 37%),
+    var(--accent)}
+/* the rays are their own square layer, pivoting behind his head, so they can spin without uncovering a corner */
+.me::before{content:"";position:absolute;left:50%;top:64%;width:220%;aspect-ratio:1;translate:-50% -50%;
+  background:repeating-conic-gradient(from 0deg, rgba(255,255,255,.17) 0 9deg, transparent 9deg 18deg);
+  animation:rays 16s linear infinite;animation-play-state:paused}
+@keyframes rays{to{rotate:360deg}}
+.me img{position:absolute;left:50%;bottom:0;translate:-50% 0;width:98%;max-width:none;height:auto;
+  transform-origin:50% 100%;transition:transform .18s ease;
+  filter:drop-shadow(0 3px 0 rgba(21,18,12,.18))}
+.me .tag{position:absolute;left:12px;bottom:14px;display:flex;align-items:center;gap:5px;text-decoration:none;background:var(--panel);color:var(--ink);
+  border:3px solid var(--line);border-radius:999px;padding:5px 13px;font-size:13px;font-weight:800;
+  box-shadow:3px 3px 0 var(--shadow);transform:rotate(-3deg);transition:transform .18s ease}
+.me .tag svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2}
+/* hover: he straightens up and the sunburst starts turning; press: the whole card squishes and the rays whip round */
+.me:hover{transform:rotate(0) translateY(-6px);box-shadow:9px 11px 0 var(--shadow)}
+.me:hover::before{animation-play-state:running}
+.me:hover img{transform:scale(1.04)}
+.me:hover .tag{transform:rotate(-6deg) translateY(-3px) scale(1.05)}
+.me:active{transform:rotate(0) translateY(-1px) scale(.985);box-shadow:3px 4px 0 var(--shadow);transition-duration:.07s}
+.me:active::before{animation-duration:3s;animation-play-state:running}
+.me:active img{transform:scale(1.005) translateY(5px);transition-duration:.07s}
+.me:active .tag{transform:rotate(-2deg) scale(.98);transition-duration:.07s}
+
+footer{margin-top:clamp(40px,6vw,72px);border-top:3px solid var(--line)}
+footer .wrap{display:flex;gap:10px 24px;flex-wrap:wrap;justify-content:space-between;padding-block:18px;font-size:13px;font-weight:700;color:var(--ink-dim)}
+footer a{text-decoration:none}
+footer .links{display:flex;gap:18px;flex-wrap:wrap}
+
+/* login dialog - the same magic-link flow as /login, without leaving the song behind */
+dialog{padding:26px 28px 24px;max-width:440px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(11,14,26,.72)}
+dialog .x{position:absolute;right:14px;top:12px;font-size:20px;line-height:1;padding:6px;color:var(--ink-dim)}
+dialog .dsong{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+dialog .dsong img{width:92px;aspect-ratio:16/9;object-fit:cover;border:3px solid var(--line);border-radius:8px;background:var(--panel)}
+dialog .dsong .t{font-weight:800;font-size:17px;line-height:1.2}
+dialog .dsong .a{font-size:12.5px;color:var(--ink-dim);font-weight:700}
+dialog h3{font-size:20px;margin-bottom:6px}
+dialog p{font-size:14px;color:var(--ink-dim)}
+dialog form{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+dialog input{font-size:16px;padding:12px 14px;width:100%}
+dialog input::placeholder{color:var(--ink-mute)}
+dialog .btn{justify-content:center}
+dialog .msg a{word-break:break-all;color:var(--cyan-t)}
+dialog .alt{margin-top:18px;padding-top:14px;border-top:3px dashed color-mix(in srgb,var(--line) 30%,transparent);display:flex;flex-direction:column;gap:8px;align-items:stretch}
+dialog .alt .gnote{font-size:12.5px;color:var(--ink-mute);text-align:center}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr}
+}
+/* phone: ログイン rides next to the wordmark, the links take a row underneath,
+   and the headline is set as wide as the screen allows */
+@media (max-width:700px){
+  .lobby .wrap{gap:10px 12px;padding-block:10px}
+  .tools{order:2;margin-left:auto}
+  .nav{order:3;width:100%;justify-content:space-between;gap:6px 10px;font-size:13.5px}
+  .hero{padding-block:22px 26px}
+  .hero h1{font-size:min(22.5vw,104px);line-height:1.02}
+  .hero h1 .en{font-size:.36em;margin-top:.5em}
+  .lasso{padding-left:.2em}
+  .lasso img{left:-.2em}
+  .cta .btn.big{font-size:16px;padding:13px 22px}
+}
+@media (max-width:560px){
+  .stickers{grid-template-columns:1fr 1fr;gap:16px 12px;padding:8px 4px}
+  .sticker .t{font-size:15px}
+  .sticker .m .who{display:none}
+  .stage .body{grid-template-columns:1fr}
+  .aside{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 14px}
+  .aside .lbl{display:none}
+  .two{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  .ticker div,.stamp{animation:none}
+  .sticker,.btn{transition:none}
+  .me,.me img,.me .tag{transition:none}
+  .me::before,.me:hover::before,.me:active::before{animation:none}
+  .caption{transition:none}
+}
+</style>
+</head>
+<body>
+
+<header class="lobby">
+  <div class="wrap">
+    <a class="logo" href="/" title="karaoke.rodeo"><img src="/static/icon-192.png" alt="">カラオケ<em>.</em>ロデオ</a>
+    <nav class="nav" aria-label="ページ内">
+      <a href="#play">あそびかた<span class="sub">how it works</span></a>
+      <a href="#stats">きろく<span class="sub">your records</span></a>
+      <a href="#party">パーティー<span class="sub">party mode</span></a>
+      <a href="#about">について<span class="sub">about</span></a>
+    </nav>
+    <div class="tools">
+      <span id="themeSlot"></span>
+      <a class="btn accent" id="topLogin" href="/login">ログイン <span class="sub">login</span></a>
+    </div>
+  </div>
+</header>
+
+<main>
+<div class="wrap hero">
+  <div>
+    <h1 title="Let's sing together."><span class="lasso"><img class="back" src="/static/hat.png" alt="" width="300" height="196" fetchpriority="high"><span class="txt">みんなで<br>歌おう。</span><img class="front" src="/static/hat-front.png" alt="" width="300" height="196" fetchpriority="high"></span><small class="en">Grab a mic, partner.</small></h1>
+    <div class="cta">
+      <button class="btn accent big" id="heroStart">歌いはじめる <span class="sub">start singing</span></button>
+      <a class="btn big" href="#about">see about my mission</a>
+    </div>
+  </div>
+  <div>
+    <div class="stickers" id="stickers" aria-label="曲をえらぶ" title="曲をえらぶ / pick a song"></div>
+    <div class="stickers-foot" id="stickersFoot"></div>
+  </div>
+</div>
+
+<div class="ticker noruby" aria-hidden="true"><div id="ticker"></div></div>
+
+<section id="play" class="wrap">
+  <h2>あそびかた<span class="sub">how it works</span></h2>
+  <div class="play">
+    <div class="stage" aria-label="プレイ画面のイメージ">
+      <div class="bar"><b class="noruby">夜に駆ける</b><span class="noruby">YOASOBI</span><span class="sp"></span></div>
+      <div class="body">
+        <div class="video"><img src="/api/songs/v3/thumb" alt="" onerror="this.remove()"><div class="stamp" title="nice!!">すごい!!</div></div>
+        <div class="aside">
+          <div><div class="lbl">SCORE</div><div class="score">92<small>.417</small></div></div>
+          <div class="row"><span>PERFECT</span><b>412</b></div>
+          <div class="row"><span>GREAT</span><b>88</b></div>
+          <div class="row"><span>GOOD</span><b>21</b></div>
+          <div class="row"><span>MISS</span><b>9</b></div>
+          <div class="combo">12 COMBO!</div>
+        </div>
+      </div>
+      <div class="lane">
+        <svg viewBox="0 0 640 120" role="img" aria-label="音符バーと自分の音程の線">
+          <line class="grid" x1="0" y1="78" x2="640" y2="78"/>
+          <text class="octave" x="6" y="74">C4</text>
+          <g class="done">
+            <rect x="18" y="62" width="44" height="9" rx="4"/><rect x="100" y="42" width="58" height="9" rx="4"/>
+            <rect x="194" y="46" width="40" height="9" rx="4"/><rect x="240" y="34" width="66" height="9" rx="4"/>
+          </g>
+          <g class="soft"><rect x="66" y="50" width="30" height="9" rx="4"/><rect x="164" y="54" width="26" height="9" rx="4"/></g>
+          <g class="live"><rect x="308" y="40" width="18" height="9" rx="4"/></g>
+          <g class="wait">
+            <rect x="330" y="46" width="42" height="9" rx="4"/><rect x="378" y="38" width="30" height="9" rx="4"/><rect x="414" y="30" width="72" height="9" rx="4"/>
+            <rect x="492" y="42" width="34" height="9" rx="4"/><rect x="532" y="54" width="52" height="9" rx="4"/><rect x="590" y="62" width="40" height="9" rx="4"/>
+          </g>
+          <polyline class="trace"
+            points="18,68 40,66 60,64 68,55 90,54 104,47 130,46 156,48 168,58 186,57 198,50 226,49 244,40 270,38 296,39 314,42"/>
+          <line class="cursor" x1="316" y1="0" x2="316" y2="120"/>
+        </svg>
+      </div>
+    </div>
+    <ol class="steps" style="list-style:none;margin:0;padding:0">
+      <li class="step"><div class="n">1</div><div><h3>曲をえらぶ<span class="sub">pick a song</span></h3></div></li>
+      <li class="step"><div class="n">2</div><div><h3>マイクを許可して、うたう<span class="sub">allow the mic and sing</span></h3></div></li>
+      <li class="step"><div class="n">3</div><div><h3>点数、グレード、順位<span class="sub">score, grade, rank</span></h3>
+        <div class="result"><span class="readout">92.417</span><span><span class="g" title="hall of fame!!">殿堂入り!!</span><br><span class="pb" title="new personal best!">自己ベスト更新！</span> <span class="r" title="1st of 4 on this song">この曲で 1位 / 4人</span></span></div></div></li>
+    </ol>
+  </div>
+</section>
+
+<section id="stats" class="wrap">
+  <h2>きろく<span class="sub">your records</span></h2>
+  <div class="cards">
+    <article class="box card">
+      <h3>練習カレンダー<span class="sub">practice calendar</span></h3>
+      <div class="mock"><div class="cal" id="cal"></div><div class="streak" title="6-day streak · 14 days this month">連続 <b>6</b>日 · 今月 <b>14</b>日</div></div>
+    </article>
+    <article class="box card">
+      <h3>点数の推移<span class="sub">score over time</span></h3>
+      <div class="mock trend"><div><span>9/03</span><b>84.902</b></div><div><span>9/06</span><b>88.113</b></div><div><span>9/09</span><b>90.480</b></div><div><span>9/11</span><b class="pb">92.417</b></div></div>
+    </article>
+    <article class="box card">
+      <h3>にがてな区間<span class="sub">your weak spots</span></h3>
+      <div class="mock weak" title="section 23 / 41 / 8 - accuracy"><div><span>区間 23</span><i style="--w:38%"></i><b>38%</b></div><div><span>区間 41</span><i style="--w:52%"></i><b>52%</b></div><div><span>区間 8</span><i style="--w:61%"></i><b>61%</b></div></div>
+    </article>
+    <article class="box card">
+      <h3>音ごとの正確さ<span class="sub">accuracy by note</span></h3>
+      <div class="mock notes" title="flat / on pitch / sharp, in cents"><div><span>A4 (ラ)</span><b class="flat">−18¢ 低め</b></div><div><span>F#4 (ファ♯)</span><b class="ok">±3¢</b></div><div><span>D5 (レ)</span><b class="sharp">+11¢ 高め</b></div></div>
+    </article>
+  </div>
+</section>
+
+<section id="rank" class="wrap">
+  <h2>ランキング<span class="sub">rankings</span></h2>
+  <div class="box rkboard"><table id="rkTbl"></table></div>
+</section>
+
+<section id="party" class="wrap">
+  <h2>パーティー<span class="sub">party mode</span></h2>
+  <!-- not a picture of the party screen: the real flow, playable right here -->
+  <div class="demo">
+    <div class="screen" aria-label="ホストの画面">
+      <div class="tophat">
+        <span class="dlogo">カラオケ<em>.</em>ロデオ</span>
+        <button class="pbtn" id="dStart" title="start a party">🎉 パーティー</button>
+      </div>
+      <div class="pbar" id="dBar"><div class="binner">
+        <span class="pl">🎉 パーティー</span><span class="pcode">K7PQ3</span>
+        <span class="pmembers" id="dMembers"></span>
+        <button class="gh" id="dQr" title="QR and passphrase">QR・あいことば</button>
+        <button class="gh" id="dEnd" title="end the party">パーティー終了</button>
+      </div></div>
+      <div class="sbody">
+        <div class="ghosts" id="dSongs">
+          <i><b></b><em>曲1<span class="sub">song 1</span></em></i><i><b></b><em>曲2<span class="sub">song 2</span></em></i>
+          <i><b></b><em>曲3<span class="sub">song 3</span></em></i><i><b></b><em>曲4<span class="sub">song 4</span></em></i>
+        </div>
+        <div class="qrpop" id="dQrPop" hidden>
+          <svg id="dQrSvg" viewBox="0 0 23 23" aria-hidden="true"></svg>
+          <div><div class="pcode big">K7PQ3</div><div class="cap">karaoke.rodeo/p/K7PQ3</div>
+            <p class="cap">スマホでQRを読むか、このURLを開いて参加。<span class="sub">Scan the QR or open the URL to join.</span></p>
+            <button class="gh" id="dQrX">とじる</button></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="caption" id="dCap"></p>
+  <div class="pnotes">
+    <div><b>ゲストはニックネームだけ。</b><span class="sub">A guest needs only a nickname.</span></div>
+    <div><b>アカウントなら記録に残る。</b><span class="sub">With an account, the scores are kept.</span></div>
+  </div>
+</section>
+
+<section id="about" class="wrap">
+  <div class="box about">
+    <div>
+      <h2>ミッション<span class="sub">our mission</span></h2>
+      <div class="mission">
+        <p>I started studying for N3 and hit the wall every learner hits: to actually hold a conversation, you have to read fast enough and speak fast enough. The best solution I read about is shadowing - following the words out loud, at full speed. And the most enjoyable way to shadow, in my opinion, is karaoke.</p>
+        <p>But no karaoke app had <b>scoring</b>, <b>Japanese songs</b>, and <b>furigana</b> at the same time. There was always one element missing. So I built カラオケ.ロデオ.</p>
+        <p>This is also why the site itself is in Japanese. Furigana is there to help you through, and hovering over a label shows you the English, but there is no English option by itself. The point is for your eyes to start recognising the characters, not to switch back to English and forget Japanese was ever an option.</p>
+        <p>It is built on openly available karaoke videos, it is free, and it stays free. I want to bring the joy of karaoke to everyone, and give Japanese learners somewhere to practise - on your own, in a classroom, or at a party.</p>
+      </div>
+      <div class="cta"><button class="btn accent big" data-start>歌いはじめる <span class="sub">start singing</span></button></div>
+    </div>
+    <a class="me" href="https://www.instagram.com/danito.mateviq/" target="_blank" rel="noopener me"
+       title="instagram: @danito.mateviq">
+      <img src="/static/dani.png" alt="" width="760" height="938" loading="lazy" decoding="async">
+      <span class="tag">つくったひと<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.2" fill="currentColor" stroke="none"/></svg><span class="sub">the person who made it - instagram</span></span>
+    </a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>カラオケ.ロデオ · karaoke.rodeo</span>
+    <span class="links"><a href="#play">あそびかた<span class="sub">how it works</span></a><a href="#stats">きろく<span class="sub">your records</span></a><a href="#party">パーティー<span class="sub">party mode</span></a><a href="/login">ログイン<span class="sub">login</span></a></span>
+  </div>
+</footer>
+
+<dialog id="dlg">
+  <button class="x" id="dlgX" aria-label="閉じる">✕</button>
+  <div class="dsong noruby" id="dlgSong" hidden><img id="dlgThumb" alt=""><div><div class="t" id="dlgTitle"></div><div class="a" id="dlgArtist"></div></div></div>
+  <h3 id="dlgH">ログインして、うたう</h3>
+  <p>メールアドレスを入れると、ログイン用のリンクと6桁のコードを送ります。どちらかで、そのままこの曲へ。初めての方もこれで登録できます。<span class="sub">Enter an email and we send a login link and a six-digit code - either one takes you straight to the song. This is also how you sign up.</span></p>
+  <form id="f">
+    <input id="email" type="email" required autocomplete="email" inputmode="email" placeholder="you@example.com">
+    <button class="btn accent" id="btn" type="submit">リンクを送る <span class="sub">send link</span></button>
+  </form>
+  <div id="out" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+  <form id="cf" hidden>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="メールの6桁コード" required>
+    <button class="btn accent" id="cbtn" type="submit">コードでログイン <span class="sub">sign in with code</span></button>
+  </form>
+  <div class="alt">
+    <button class="btn" id="guestBtn" type="button">ゲストとして続ける <span class="sub">continue as guest</span></button>
+    <p class="gnote">点数はその場で出ますが、保存はされません。<span class="sub">You get your score, but nothing is saved.</span></p>
+  </div>
+</dialog>
+
+<script type="module">
+  import { api, getMe, el, $, fmtScore, fmtDur, avatarUrl, rubyEl, themeButton, furiganaButton, isGuest, setGuest, toast } from '/static/common.js';
+
+  const me = await getMe().catch(() => null);
+  const guest = !me && isGuest();   // already chose to continue as a guest: songs open without the dialog
+  // The landing header carries no guest state - a visitor gets the two setting buttons, whoever they are.
+  $('themeSlot').replaceWith(furiganaButton(), themeButton());
+  if (me) {
+    $('topLogin').replaceChildren('うたう ', el('span', { class: 'sub' }, 'sing'));
+    $('topLogin').href = '/songs';
+  }
+
+  // ---- the catalogue, as stickers ----
+  const [{ songs }, lb] = await Promise.all([api('/api/songs'), api('/api/leaderboard').catch(() => ({ recent: [] }))]);
+  const av = (u, cls) => {
+    const url = avatarUrl(u);
+    return url ? el('img', { class: cls, src: url, alt: '' }) : el('span', { class: cls }, (u.display_name || '?').trim().slice(0, 1).toUpperCase());
+  };
+  const playUrl = (s) => `/play?song=${encodeURIComponent(s.id)}`;
+  function sticker(s) {
+    const top = s.top && s.top[0];
+    const thumb = el('div', { class: 'thumb' });
+    if (s.has_thumb) thumb.append(el('img', { src: `/api/songs/${s.id}/thumb`, alt: '', loading: 'lazy' }));
+    if (s.my_best != null) thumb.append(el('div', { class: 'best' }, fmtScore(s.my_best)));
+    return el('button', { class: 'sticker', type: 'button', onclick: () => pick(s) },
+      thumb,
+      el('span', { class: 't noruby' }, rubyEl(s.title_ruby, s.title_jp || s.title_en || s.id)),
+      el('span', { class: 'a noruby' }, rubyEl(s.artist_ruby, s.artist_jp || s.artist_en || '')),
+      el('span', { class: 'm' },
+        el('span', { title: 'notes · length' }, `${s.n_notes ?? '?'}音 · ${fmtDur(s.duration)}`),
+        top ? el('span', { class: 'who', title: `1位 ${top.display_name} / top score` }, av(top, 'av'), el('span', { class: 'readout' }, fmtScore(top.best)))
+            : el('span', { title: 'no scores yet' }, 'まだ記録なし')));
+  }
+  const shown = songs.slice(0, 4);   // the hero menu is a taste of the catalogue, not the catalogue
+  $('stickers').replaceChildren(...shown.map(sticker));
+  if (!songs.length) $('stickers').append(el('div', { class: 'box', style: 'padding:18px;font-weight:700' }, 'まだ曲がありません。'));
+  $('stickersFoot').textContent = songs.length > shown.length ? '' : `全 ${songs.length} 曲 · 少しずつ増えています`;
+  if (songs.length > shown.length) {
+    $('stickersFoot').append(el('a', { href: (me || guest) ? '/songs' : '/login?next=%2Fsongs', title: 'see the other songs' }, `ほか ${songs.length - shown.length} 曲を見る →`));
+  } else $('stickersFoot').title = 'every song there is · more are added';
+
+  // ticker: titles, then the promises
+  const words = [...songs.map((s) => `${s.title_jp || s.title_en} / ${s.artist_jp || s.artist_en || ''}`), 'ふりがな付き', 'リアルタイム採点', '1〜8人', '無料'];
+  $('ticker').replaceChildren(...[...words, ...words].map((w) => el('span', {}, w)));
+
+  // ランキング: the 総合 board, from the leaderboard already fetched above
+  {
+    const board = (lb.board || []).slice(0, 6);
+    $('rkTbl').replaceChildren(
+      el('tr', {}, el('th', {}, '#'), el('th', {}, 'うたい手'), el('th', { class: 'num' }, '平均ベスト'), el('th', { class: 'num' }, '曲数')),
+      ...board.map((r) => el('tr', {},
+        el('td', { class: 'rk' }, r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank),
+        el('td', {}, el('span', { class: 'who' }, av(r, 'av'), el('span', { class: 'noruby' }, r.display_name))),
+        el('td', { class: 'num sc' }, fmtScore(r.avg_best)),
+        el('td', { class: 'num' }, `${r.n_songs} 曲`))));
+    if (!board.length) $('rkTbl').append(el('tr', {}, el('td', { class: 'mute', colspan: 4 }, 'まだ記録がありません。最初の一人になろう。')));
+  }
+
+  // calendar mock: a pattern, not data
+  const lv = [0,1,0,2,3,0,1, 2,0,3,3,1,0,2, 3,2,0,1,3,3,0, 1,3,2,0,3,3,3, 2,3,1,0,2,3,3, 3,2,3,1,0,3,3, 0,1,3,2,3,3,3, 1,0,2,3,3,3,3, 2,3,0,3,3,1,2, 3,3,3,0,2,3,3, 3,1,3,3,0,3,3, 2,3,3,3,3,3,3];
+  $('cal').replaceChildren(...lv.map((l) => el('i', { class: l ? `l${l}` : '' })));
+
+  // ---- pick a song: logged in → play; otherwise the login dialog, with the song kept as `next` ----
+  const dlg = $('dlg');
+  let next = '/';
+  function pick(s) {
+    if (me || guest) { location.href = playUrl(s); return; }
+    next = playUrl(s);
+    $('dlgSong').hidden = false;
+    $('dlgThumb').src = s.has_thumb ? `/api/songs/${s.id}/thumb` : '';
+    $('dlgTitle').replaceChildren(rubyEl(s.title_ruby, s.title_jp || s.title_en || s.id));
+    $('dlgArtist').replaceChildren(rubyEl(s.artist_ruby, s.artist_jp || s.artist_en || ''));
+    $('dlgH').textContent = 'ログインして、この曲をうたう';
+    open();
+  }
+  function start() {
+    if (me || guest) { location.href = '/songs'; return; }
+    next = '/songs';
+    $('dlgSong').hidden = true;
+    $('dlgH').textContent = 'ログインして、うたう';
+    open();
+  }
+  function open() {
+    $('out').replaceChildren(); $('cf').hidden = true; $('btn').disabled = false; $('cbtn').disabled = false;
+    dlg.showModal();
+    $('email').focus();
+  }
+  $('heroStart').onclick = start;
+  for (const b of document.querySelectorAll('[data-start]')) b.onclick = start;
+  $('dlgX').onclick = () => dlg.close();
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+
+  $('f').onsubmit = async (e) => {
+    e.preventDefault();
+    $('btn').disabled = true; $('out').replaceChildren();
+    try {
+      const r = await api('/api/auth/request', { method: 'POST', body: { email: $('email').value, next } });
+      $('out').append(el('div', { class: 'msg ok' }, `送りました。${$('email').value} のメールを確認してください（15分有効）。リンクを開くか、6桁のコードを下に。`));
+      if (r.dev_link) $('out').append(el('div', { class: 'msg' }, el('b', {}, 'DEV MODE: '), 'メールは送っていません → ', el('a', { href: r.dev_link }, r.dev_link), ` ／ コード ${r.dev_code}`));
+      $('cf').hidden = false; $('code').focus();
+    } catch (err) {
+      $('out').append(el('div', { class: 'msg err' }, err.message));
+      $('btn').disabled = false;
+    }
+  };
+  $('cf').onsubmit = async (e) => {
+    e.preventDefault();
+    $('cbtn').disabled = true;
+    try {
+      const r = await api('/api/auth/code', { method: 'POST', body: { email: $('email').value, code: $('code').value } });
+      location.replace(r.next || next);
+    } catch (err) {
+      toast(err.message, 'err');
+      $('cbtn').disabled = false; $('code').select();
+    }
+  };
+  // Guest: no account, so nothing can be saved - the play page says so and the result dialog offers the login.
+  $('guestBtn').onclick = () => { setGuest(true); location.href = next; };
+
+  /* The party demo: the same flow as a real party, played out inside the section.
+     Nothing here talks to the server - it is the explanation, not a party. */
+  {
+    const CAST = [
+      { name: 'dani', c: '#35d6f0', best: '96.208' },
+      { name: 'サイケボン', c: '#ff4d8f', best: '92.417' },
+      { name: 'ゆい', c: '#5ef07a', best: '88.041', guest: true, queued: true },
+      { name: 'Ren', c: '#ffc64b', guest: true, queued: true },
+    ];
+    const slow = matchMedia('(prefers-reduced-motion:reduce)').matches;
+    // the line fades out and back in, so a change is noticed even when the eye is on the bar.
+    // Handing the text over as an element also lets the furigana observer put readings on it.
+    let capT;
+    const say = (jp, en) => {
+      const c = $('dCap');
+      clearTimeout(capT);
+      const set = () => { c.title = en; c.replaceChildren(el('span', {}, jp)); c.classList.remove('out'); };
+      if (!c.firstChild || slow) { set(); return; }
+      c.classList.add('out');
+      capT = setTimeout(set, 150);
+    };
+    let seated = [], cur = null, run = 0, timers = [];
+    const after = (ms, fn) => { const t = run; timers.push(setTimeout(() => { if (t === run) fn(); }, slow ? ms / 6 : ms)); };
+
+    function seatChip(m, fresh) {
+      const b = el('button', {
+        class: 'seat' + (m === cur ? ' cur' : '') + (fresh ? ' pop' : ''), style: `--c:${m.c}`,
+        title: m === cur ? 'いま歌っている人 / singing now' : 'この人にマイクを渡す / pass them the mic',
+        onclick: () => pass(m),
+      }, el('i', {}), m.name);
+      if (m.queued) b.append(el('span', { class: 'q' }, `次${seated.filter((x) => x.queued).indexOf(m) + 1}`));
+      if (m.best) b.append(el('b', {}, m.best));
+      return b;
+    }
+    function draw(fresh) {
+      $('dMembers').replaceChildren(...seated.map((m) => seatChip(m, fresh === m)));
+    }
+    function pass(m) {
+      if (!seated.includes(m)) return;
+      cur = m; m.queued = false; draw();
+      say(`${m.name} にマイクを渡しました。うたう画面の音程の線も、その人の色に変わります。`,
+        `The mic is now with ${m.name}; on the play screen the pitch line turns their colour too.`);
+    }
+    function reset() {
+      run++; timers.forEach(clearTimeout); timers = [];
+      seated = []; cur = null;
+      $('dBar').classList.remove('on'); $('dStart').classList.remove('on'); $('dQrPop').hidden = true;
+      draw();
+      say('これはホストの画面です。「🎉 パーティー」を押してみてください。',
+        "This is the host's screen - press 🎉 パーティー to start one.");
+    }
+    function start() {
+      if ($('dBar').classList.contains('on')) return;
+      run++;
+      $('dBar').classList.add('on'); $('dStart').classList.add('on');
+      say('あいことばが出ました。「QR・あいことば」を出して、みんなのスマホで読んでもらいます。',
+        'The passphrase is up. Show QR・あいことば and let everyone scan it with their phones.');
+      CAST.forEach((m, i) => after(700 + i * 750, () => { seated.push(m); draw(m); }));
+    }
+
+    // not a real code: a QR-shaped mark, drawn from a fixed seed (el() makes HTML nodes, so this is markup)
+    let seed = 7, marks = '';
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const px = (x, y) => { marks += `<rect x="${x}" y="${y}" width="1" height="1"/>`; };
+    for (let y = 0; y < 23; y++) for (let x = 0; x < 23; x++) {
+      const ring = (a, b) => x >= a && x < a + 7 && y >= b && y < b + 7
+        && (x === a || x === a + 6 || y === b || y === b + 6 || (x > a + 1 && x < a + 5 && y > b + 1 && y < b + 5));
+      if (ring(0, 0) || ring(16, 0) || ring(0, 16)) px(x, y);
+      else if (x < 8 && y < 8 || x > 15 && y < 8 || x < 8 && y > 15) continue;
+      else if (rnd() > .55) px(x, y);
+    }
+    $('dQrSvg').innerHTML = marks;
+
+    // the four cards borrow real thumbnails from the catalogue that is already loaded above
+    [...$('dSongs').children].forEach((card, i) => {
+      const song = songs[i];
+      if (song && song.has_thumb) card.firstElementChild.append(el('img', { src: `/api/songs/${song.id}/thumb`, alt: '', loading: 'lazy', onerror(){ this.remove(); } }));
+    });
+
+    $('dStart').onclick = start;
+    $('dEnd').onclick = reset;
+    const closeQr = () => {
+      $('dQrPop').hidden = true;
+      say('バーの名前をタップすると、その人にマイクが渡ります。歌う人はスマホの「次うたいたい！」で順番待ち。',
+        'Tap a name in the bar to pass them the mic. On their own phones, singers queue up with 次うたいたい！.');
+    };
+    $('dQr').onclick = () => { if ($('dQrPop').hidden) $('dQrPop').hidden = false; else closeQr(); };
+    $('dQrX').onclick = closeQr;
+    reset();
+  }
+</script>
+</body>
+</html>

@@ -92,7 +92,7 @@ def create_party(request: Request, db=Depends(get_db), user=Depends(require_user
 
 @router.get("/api/party/mine")
 def my_party(request: Request, db=Depends(get_db), user=Depends(require_user)):
-    """The caller's open party (as host), or {} — lets the play page restore its party panel after a reload."""
+    """The caller's open party (as host), or {} - lets the play page restore its party panel after a reload."""
     p = one(db.execute("SELECT * FROM parties WHERE host_user_id=? AND ended_at IS NULL ORDER BY created_at DESC", (user["id"],)))
     return _state(db, request, p, user) if p else {}
 
@@ -106,7 +106,9 @@ def get_party(code: str, request: Request, db=Depends(get_db), user=Depends(curr
 def party_qr(code: str, db=Depends(get_db)):
     p = _party(db, code)
     buf = io.BytesIO()
-    segno.make(f"{config.BASE_URL}/p/{p['code']}", error="m").save(buf, kind="svg", scale=8, dark="#eef2ff", light=None, border=1)
+    # Ink modules on the dialog's white card: a near-white module colour was invisible on it, and
+    # scanners want dark-on-light anyway. light=None keeps the card's rounded corners showing through.
+    segno.make(f"{config.BASE_URL}/p/{p['code']}", error="m").save(buf, kind="svg", scale=8, dark="#15120c", light=None, border=1)
     return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
 
 

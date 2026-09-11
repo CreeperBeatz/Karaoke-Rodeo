@@ -9,10 +9,19 @@ from . import config
 SCHEMA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 # Append-only list of (version, sql). schema.sql is version 1.
 MIGRATIONS = [
-    # 2: login codes — the magic-link mail also carries a 6-digit code that can be typed into an installed app
+    # 2: login codes - the magic-link mail also carries a 6-digit code that can be typed into an installed app
     #    (iOS keeps a home-screen app's cookies apart from Safari, so the link alone cannot log the app in).
     (2, "ALTER TABLE login_tokens ADD COLUMN code_hash TEXT;\n"
         "ALTER TABLE login_tokens ADD COLUMN code_attempts INTEGER NOT NULL DEFAULT 0;"),
+    # 3: furigana for the song menu. Aozora-style markup, 漢字《かな》 (an optional ｜ marks where the base starts);
+    #    the catalogue renders it as <ruby>. Edited in the admin table; the songs that exist today get theirs here.
+    (3, "ALTER TABLE songs ADD COLUMN title_ruby TEXT;\n"
+        "ALTER TABLE songs ADD COLUMN artist_ruby TEXT;\n"
+        "UPDATE songs SET title_ruby='残酷《ざんこく》な天使《てんし》のテーゼ', artist_ruby='高橋《たかはし》洋子《ようこ》' WHERE id='v2';\n"
+        "UPDATE songs SET title_ruby='夜《よる》に駆《か》ける' WHERE id='v3';\n"
+        "UPDATE songs SET title_ruby='残響《ざんきょう》散歌《さんか》' WHERE id='v4';\n"
+        "UPDATE songs SET title_ruby='白日《はくじつ》' WHERE id='v5';\n"
+        "UPDATE songs SET artist_ruby='米津《よねづ》玄師《けんし》' WHERE id='qCyvFHauKt0';"),
 ]
 
 

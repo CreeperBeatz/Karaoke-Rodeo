@@ -143,6 +143,8 @@ class SongPatch(BaseModel):
     artist_jp: Optional[str] = None
     title_en: Optional[str] = None
     artist_en: Optional[str] = None
+    title_ruby: Optional[str] = None    # 漢字《かな》 markup for the menu; an empty string clears it
+    artist_ruby: Optional[str] = None
 
 
 @router.patch("/api/admin/songs/{sid}")
