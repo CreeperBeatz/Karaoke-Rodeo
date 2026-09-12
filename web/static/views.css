@@ -22,6 +22,9 @@ html.busy { cursor: progress; }
 .v-stats .songtabs button { border-radius: 999px; font-size: 13px; padding: 5px 12px; }
 .v-stats .songtabs button.on { background: var(--accent); color: #15120c; }
 .v-stats .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* a grid item is min-width:auto by default, so one wide child (the section heat map) would widen the whole
+   column - and with it the trend panel sharing it - until the page itself scrolled sideways */
+.v-stats .two > * { min-width: 0; }
 @media (max-width: 860px) { .v-stats .two { grid-template-columns: 1fr; } }
 .v-stats .weaklist li { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 2px solid var(--line-soft); font-size: 14px; }
 .v-stats .weaklist ul { list-style: none; margin: 8px 0 0; padding: 0; } .v-stats .weaklist li:last-child { border: none; }
@@ -32,9 +35,11 @@ html.busy { cursor: progress; }
 .v-stats .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .v-stats td.sc { font-family: var(--font-num); color: var(--accent-t); font-size: 16px; }
 @media (max-width: 640px) {
-  /* the section heat map is a row of tap targets, so its cells get a finger's width and a taller band */
-  .v-stats .heat { height: 34px; gap: 3px; }
-  .v-stats .heat i { min-width: 10px; border-radius: 4px; }
+  /* the section heat map is a grid of tap targets rather than one strip: a long song has 70-odd sections, and
+     a single row of finger-wide cells is metres long. Wrapped, it reads like the practice calendar - left to
+     right, top to bottom, still in song order - and it always fits the panel. */
+  .v-stats .heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(18px, 1fr)); gap: 3px; height: auto; }
+  .v-stats .heat i { min-width: 0; aspect-ratio: 1; border-radius: 4px; }
   /* the song tabs are a horizontal strip rather than a block that eats half the screen when there are many songs */
   .v-stats .songtabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 4px; }
   .v-stats .songtabs button { flex: none; }

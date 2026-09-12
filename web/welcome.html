@@ -73,7 +73,7 @@ p{margin:0}
 .lasso img{position:absolute;left:-.54em;top:-.24em;width:1.92em;height:auto;pointer-events:none;transform:rotate(-17deg)}
 .lasso .back{z-index:0}
 .lasso .front{z-index:2}
-.lasso .txt{position:relative;z-index:1}
+.lasso .txt{position:relative;z-index:1;white-space:nowrap}   /* the <br> sets the two lines; nothing else may break them */
 .lasso ruby rt{color:inherit}
 .cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .hero .cta{margin-top:clamp(22px,3.5vw,34px)}   /* the headline and the one button; the words live on /about */
@@ -162,8 +162,12 @@ main section+section{border-top:3px solid var(--line)}
 .card h3{font-size:17px}
 .card p{font-size:14px;color:var(--ink-dim)}
 .mock{background:var(--panel-2);color:var(--ink);border:3px solid var(--line);border-radius:12px;padding:12px;font-size:12px;margin-top:auto}
-.cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,11px);gap:3px;justify-content:start}
-.cal i{width:11px;height:11px;border-radius:3px;background:var(--panel-3);display:block}
+/* 84 cells = 12 weeks down 7 days, sized by the card rather than fixed at 11px, so the grid fills the width
+   it is given instead of leaving a third of the card blank on a phone. The ratio is on the grid, not on the
+   cells: that makes the 7 rows definite, so each cell fills its track in both axes. 12 columns over 7 rows
+   with 3px gaps is 1.73:1, which holds the cells square to within a fraction of a pixel at any card width. */
+.cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);grid-auto-columns:1fr;gap:3px;aspect-ratio:1.73}
+.cal i{width:100%;height:100%;border-radius:3px;background:var(--panel-3);display:block}   /* not auto: common.css pins .cal i to 12px square for the app's own calendar */
 .cal i.l1{background:#bfe9f3}.cal i.l2{background:#6fd3e8}.cal i.l3{background:var(--cyan)}
 .mock .streak{margin-top:8px;color:var(--ink-dim)}
 .mock .streak b{font-family:var(--font-num);color:var(--accent-t);font-size:16px}
@@ -310,15 +314,33 @@ dialog .alt .gnote{font-size:12.5px;color:var(--ink-mute);text-align:center}
 /* phone: ログイン rides next to the wordmark, the links take a row underneath,
    and the headline is set as wide as the screen allows */
 @media (max-width:700px){
-  .lobby .wrap{gap:10px 12px;padding-block:10px}
-  .tools{order:2;margin-left:auto}
+  /* Row one - wordmark, ふりがな, theme, ログイン - never breaks. It is all kana, so its width is simply
+     (characters x font-size): 7.36em of wordmark + 4em of ログイン + the icons. The type is sized from the
+     viewport so the sum still fits a 320px screen; the two icon buttons keep their size, being tap targets. */
+  .lobby .wrap{gap:10px 8px;padding-block:10px;flex-wrap:wrap}
+  .tools{order:2;margin-left:auto;gap:clamp(4px,1.6vw,14px);flex-wrap:nowrap}
+  .lobby .logo{font-size:clamp(13px,4.05vw,22px);gap:.4em}
+  .lobby .logo img{width:1.3em;height:1.3em}
+  .tools .themebtn{padding:.3em .45em}   /* ☀️/🌙 come from the system emoji face, ~1.3em wide, not 1em */
+  .tools .btn{font-size:clamp(11px,3.2vw,14px);padding:.6em 1em;white-space:nowrap}
   .nav{order:3;width:100%;justify-content:space-between;gap:6px 10px;font-size:13.5px}
   .hero{padding-block:22px 26px}
-  .hero h1{font-size:min(22.5vw,104px);line-height:1.02}
+  .hero h1{font-size:min(20.5vw,104px);line-height:1.02}   /* the line is 4 kana wide (~4.2em with the lasso's padding): 20.5vw keeps it inside .wrap down to a 320px screen */
   .hero h1 .en{font-size:.36em;margin-top:.5em}
-  .lasso{padding-left:.2em}
-  .lasso img{left:-.2em}
-  .cta .btn.big{font-size:16px;padding:13px 22px}
+  /* the hat sits on み the way it does on desktop (its left edge ~.6em before the text). Most of that comes
+     from indenting the line rather than from the hat, which already overhangs the left edge of the screen. */
+  .lasso{padding-left:.3em}
+  .lasso img{left:-.3em}
+  /* The party bar becomes three stacked rows: name + code, then the seats, then the controls. In one wrapping
+     row the seats pop in one at a time, and each arrival shoved QR・あいことば and パーティー終了 onto another
+     line and back. Giving the seats a row of their own lets them grow downwards and leaves the rest still. */
+  .pbar .binner{row-gap:8px}
+  .pmembers{flex:1 0 100%}
+  .cta .btn.big{font-size:16px;padding:13px 22px;white-space:nowrap}   /* a label breaking mid-phrase looks worse than the pills stacking */
+  /* The two hero pills stay side by side. Their labels are 6.00em and 10.70em wide (measured in the real face),
+     so with padding of .75em a side the pair needs ~20.3em + the gap: that inverts to the font-size below. */
+  .hero .cta{flex-wrap:nowrap;gap:clamp(7px,2.2vw,14px)}
+  .hero .cta .btn.big{font-size:min(18px,calc((92vw - 46px) / 20.3));padding:.8em .75em}
 }
 @media (max-width:560px){
   .stickers{grid-template-columns:1fr 1fr;gap:16px 12px;padding:8px 4px}
@@ -723,10 +745,21 @@ dialog .alt .gnote{font-size:12.5px;color:var(--ink-mute);text-align:center}
     $('dQrSvg').innerHTML = marks;
 
     // the four cards borrow real thumbnails from the catalogue that is already loaded above
-    [...$('dSongs').children].forEach((card, i) => {
+    const ghosts = [...$('dSongs').children];
+    ghosts.forEach((card, i) => {
       const song = songs[i];
       if (song && song.has_thumb) card.firstElementChild.append(el('img', { src: `/api/songs/${song.id}/thumb`, alt: '', loading: 'lazy', onerror(){ this.remove(); } }));
     });
+    // The catalogue behind the bar is one row deep: it shows the cards that fit across and drops the rest, so a
+    // phone gets one wide card instead of a four-storey stack. Rather than guess the breakpoints, ask the grid -
+    // with every card shown, auto-fit resolves to min(4, how many fit), and collapsed tracks report as 0px.
+    const fitGhosts = () => {
+      ghosts.forEach((c) => { c.hidden = false; });
+      const cols = getComputedStyle($('dSongs')).gridTemplateColumns.split(' ').filter((w) => parseFloat(w) > 0).length;
+      ghosts.forEach((c, i) => { c.hidden = i >= cols; });
+    };
+    fitGhosts();
+    addEventListener('resize', fitGhosts);
 
     $('dStart').onclick = start;
     $('dEnd').onclick = reset;
